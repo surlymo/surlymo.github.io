@@ -1,0 +1,493 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>【大型网站技术架构笔记】架构模式与核心要素 | 飞小狐的博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Surlymo">
+    
+    <meta name="description" content="架构模式
+系统朝大型系统衍变的过程中，如下几个架构模式是我们应该考虑也终将经历的。
+分层
+即对系统进行横向划分。比如进行MVC分层，又可分为接入层、业务层、核心数据层。应当禁止跨层调用以及逆向调用。
+分割
+即对系统进行纵向划分。比如在业务层上拆解业务，核心数据层上划分不同类型的数据，以方便流量控制等">
+    
+    
+    
+    
+    <link rel="alternative" href="/atom.xml" title="飞小狐的博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="飞小狐的博客" title="飞小狐的博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="飞小狐的博客">飞小狐的博客</a></h1>
+				<h2 class="blog-motto">Action speak louder than words</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:github.com/surlymo">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2014/12/09/大型网站架构模式与核心要素/" title="【大型网站技术架构笔记】架构模式与核心要素" itemprop="url">【大型网站技术架构笔记】架构模式与核心要素</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="https://github.com/surlymo/about" title="Surlymo" target="_blank" itemprop="author">Surlymo</a>
+		
+  <p class="article-time">
+    <time datetime="2014-12-09T13:30:00.000Z" itemprop="datePublished"> 发表于 12月 9 2014</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#架构模式"><span class="toc-number">1.</span> <span class="toc-text">架构模式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#分层"><span class="toc-number">1.1.</span> <span class="toc-text">分层</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#分割"><span class="toc-number">1.2.</span> <span class="toc-text">分割</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#分布式"><span class="toc-number">1.3.</span> <span class="toc-text">分布式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#集群"><span class="toc-number">1.4.</span> <span class="toc-text">集群</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#缓存"><span class="toc-number">1.5.</span> <span class="toc-text">缓存</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#异步化"><span class="toc-number">1.6.</span> <span class="toc-text">异步化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#冗余"><span class="toc-number">1.7.</span> <span class="toc-text">冗余</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#自动化"><span class="toc-number">1.8.</span> <span class="toc-text">自动化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安全"><span class="toc-number">1.9.</span> <span class="toc-text">安全</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#核心架构要素"><span class="toc-number">2.</span> <span class="toc-text">核心架构要素</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#性能"><span class="toc-number">2.1.</span> <span class="toc-text">性能</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#可用性"><span class="toc-number">2.2.</span> <span class="toc-text">可用性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#伸缩性"><span class="toc-number">2.3.</span> <span class="toc-text">伸缩性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#扩展性"><span class="toc-number">2.4.</span> <span class="toc-text">扩展性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安全性"><span class="toc-number">2.5.</span> <span class="toc-text">安全性</span></a></li></ol></li></ol>
+		
+		</div>
+		
+		<h2 id="架构模式">架构模式</h2>
+<p>系统朝大型系统衍变的过程中，如下几个架构模式是我们应该考虑也终将经历的。</p>
+<h3 id="分层">分层</h3>
+<p>即对系统进行横向划分。比如进行MVC分层，又可分为接入层、业务层、核心数据层。应当禁止<strong>跨层调用</strong>以及<strong>逆向调用</strong>。</p>
+<h3 id="分割">分割</h3>
+<p>即对系统进行纵向划分。比如在业务层上拆解业务，核心数据层上划分不同类型的数据，以方便流量控制等。</p>
+<h3 id="分布式">分布式</h3>
+<p>分布式部署一般耳熟能详。也是SOA中重要的一环。但是在没有高效分布式事务的前提下，如何在分布式中保证数据一致性，是首当其冲需要考虑的。分布式概念衍生出很多我们生产环境中常规的一些设计思路，比如将应用和服务分布式化；静态资源分布式部署即动静分离，以方便通过反向代理，加速等手段来加速与优化；nosql、sql等方式存储数据；分布式配置；分布式权限控制；分布式封禁；分布式锁；分布式文件系统如NFS；分布式计算，如阿里的天梯系统等。</p>
+<h3 id="集群">集群</h3>
+<p>到了后期，为保证服务的性能和高可用，一般都会进行集群化部署，即将服务进行虚拟化处置。这中间就需要考虑负载均衡，健康检查，自动剔除等。</p>
+<h3 id="缓存">缓存</h3>
+<p>缓存在大型系统中的地位极其重要。其可以充当数据层的缓冲层，通过缓存热点数据，以及不常改变的数据来达到提升性能，减少数据持久层的压力等目的。缓存从前到后可以分为：CDN加速、反向代理、本地缓存、分布式缓存。</p>
+<h3 id="异步化">异步化</h3>
+<p>当并发过大超过服务吞吐能力时，采用消息队列（比如RabbitMQ, ActiveMQ, Kafka）可以达到削峰的目的。</p>
+<h3 id="冗余">冗余</h3>
+<p>进行适当的热备、冷备也是比较重要的。比如RabbitMQ就可以通过冗余来保证数据的可靠性。</p>
+<h3 id="自动化">自动化</h3>
+<p>自动化部署、发布、测试、监控、报警、降级、资源分配等都是一个必须要考虑的议题。</p>
+<h3 id="安全">安全</h3>
+<p>手机验证码、图形验证码、以及敏感信息过滤、防SQL注入、防XSS攻击（如CSRF）等。</p>
+<h2 id="核心架构要素">核心架构要素</h2>
+<h3 id="性能">性能</h3>
+<p>几个tips：<br><em>浏览器端利用浏览器缓存、使用页面压缩、减少Cookie传输；</em><br><em>传输上采用CDN加速和反向代理服务器；</em><br><em>服务器端利用本地/分布式缓存；结合消息队列实现异步化；集群化虚拟化；</em><br><em>代码层面采用多线程，以及JVM优化，利用弱键等其他手段</em><br><em>数据库端，适当采用索引，利用DB缓存（默认打开），SQL优化，利用NOSQL，NEWSQL优化</em><br>性能的衡量标准一般可以看平响、吞吐量（TPS、QPS）等。</p>
+<h3 id="可用性">可用性</h3>
+<p>一般就三个手段、冗余、集群化、分布式。</p>
+<h3 id="伸缩性">伸缩性</h3>
+<p>服务尽量同构。DB、cache在考虑分布式时尽量提前设计好扩展方案。也可以采用一些主流的对水平伸缩支持较好的nosql、memcached、hbase等。</p>
+<h3 id="扩展性">扩展性</h3>
+<p>这个没啥好说。扩展性依赖于前期良好的架构设计。合理业务逻辑抽象，水平/垂直切割分布式化等等。</p>
+<h3 id="安全性">安全性</h3>
+<p>如上。</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/网站架构/">网站架构</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/架构/">架构</a>
+  </div>
+
+</div>
+
+
+<div class="article-share" id="share">
+
+  <div data-url="https://github.com/surlymo/2014/12/09/大型网站架构模式与核心要素/" data-title="【大型网站技术架构笔记】架构模式与核心要素 | 飞小狐的博客" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2014/12/23/大型网站的高性能架构/" title="【大型网站技术架构笔记】高性能与高可用架构">
+  <strong>上一篇：</strong><br/>
+  <span>
+  【大型网站技术架构笔记】高性能与高可用架构</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2014/09/24/大型网站技术架构笔记-演化过程/"  title="【大型网站技术架构笔记】演化过程">
+ <strong>下一篇：</strong><br/> 
+ <span>【大型网站技术架构笔记】演化过程
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+<!-- 多说评论框 start -->
+<div id="cc" class="ds-thread"></div>
+<!-- 多说评论框 end -->
+<!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+<script type="text/javascript">
+var duoshuoQuery = {short_name:"surlymo"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0] 
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+		 
+		 // 对多说评论的样式进行修改
+		 document.getElementById('cc').style.width="90%";
+		 document.getElementById('cc').style.margin="0px auto";
+		 document.getElementById('cc').style.padding="20px 0px";
+	})();
+	 
+	
+	</script>
+<!-- 多说公共JS代码 end -->
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#架构模式"><span class="toc-number">1.</span> <span class="toc-text">架构模式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#分层"><span class="toc-number">1.1.</span> <span class="toc-text">分层</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#分割"><span class="toc-number">1.2.</span> <span class="toc-text">分割</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#分布式"><span class="toc-number">1.3.</span> <span class="toc-text">分布式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#集群"><span class="toc-number">1.4.</span> <span class="toc-text">集群</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#缓存"><span class="toc-number">1.5.</span> <span class="toc-text">缓存</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#异步化"><span class="toc-number">1.6.</span> <span class="toc-text">异步化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#冗余"><span class="toc-number">1.7.</span> <span class="toc-text">冗余</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#自动化"><span class="toc-number">1.8.</span> <span class="toc-text">自动化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安全"><span class="toc-number">1.9.</span> <span class="toc-text">安全</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#核心架构要素"><span class="toc-number">2.</span> <span class="toc-text">核心架构要素</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#性能"><span class="toc-number">2.1.</span> <span class="toc-text">性能</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#可用性"><span class="toc-number">2.2.</span> <span class="toc-text">可用性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#伸缩性"><span class="toc-number">2.3.</span> <span class="toc-text">伸缩性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#扩展性"><span class="toc-number">2.4.</span> <span class="toc-text">扩展性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安全性"><span class="toc-number">2.5.</span> <span class="toc-text">安全性</span></a></li></ol></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+			<li><a href="/categories/JDK使用/" title="JDK使用">JDK使用<sup>2</sup></a></li>
+		
+			<li><a href="/categories/Spring/" title="Spring">Spring<sup>2</sup></a></li>
+		
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>7</sup></a></li>
+		
+			<li><a href="/categories/备忘录/" title="备忘录">备忘录<sup>6</sup></a></li>
+		
+			<li><a href="/categories/敏捷之路/" title="敏捷之路">敏捷之路<sup>1</sup></a></li>
+		
+			<li><a href="/categories/网站架构/" title="网站架构">网站架构<sup>4</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/架构/" title="架构">架构<sup>4</sup></a></li>
+		
+			<li><a href="/tags/SEDA/" title="SEDA">SEDA<sup>4</sup></a></li>
+		
+			<li><a href="/tags/rabbitmq/" title="rabbitmq">rabbitmq<sup>3</sup></a></li>
+		
+			<li><a href="/tags/redis/" title="redis">redis<sup>3</sup></a></li>
+		
+			<li><a href="/tags/memcached/" title="memcached">memcached<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Quartz/" title="Quartz">Quartz<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Jetty/" title="Jetty">Jetty<sup>1</sup></a></li>
+		
+			<li><a href="/tags/zookeeper/" title="zookeeper">zookeeper<sup>1</sup></a></li>
+		
+			<li><a href="/tags/findbugs/" title="findbugs">findbugs<sup>1</sup></a></li>
+		
+			<li><a href="/tags/cobertura/" title="cobertura">cobertura<sup>1</sup></a></li>
+		
+			<li><a href="/tags/checkstyle/" title="checkstyle">checkstyle<sup>1</sup></a></li>
+		
+			<li><a href="/tags/Spring/" title="Spring">Spring<sup>1</sup></a></li>
+		
+			<li><a href="/tags/一致性哈希/" title="一致性哈希">一致性哈希<sup>1</sup></a></li>
+		
+			<li><a href="/tags/fastjson/" title="fastjson">fastjson<sup>1</sup></a></li>
+		
+			<li><a href="/tags/UT/" title="UT">UT<sup>1</sup></a></li>
+		
+			<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		
+			<li><a href="/tags/sun/" title="sun">sun<sup>1</sup></a></li>
+		
+			<li><a href="/tags/CyclicBarrier/" title="CyclicBarrier">CyclicBarrier<sup>1</sup></a></li>
+		
+			<li><a href="/tags/ThreadPoolExecutor/" title="ThreadPoolExecutor">ThreadPoolExecutor<sup>1</sup></a></li>
+		
+			<li><a href="/tags/JDK/" title="JDK">JDK<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+	  <li><a href="https://github.com/surlymo" target="_blank" title="Hexo">Surlymo Github</a></li>
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  <div class="weiboshow">
+  <p class="asidetitle">新浪微博</p>
+   <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=1&isFans=1&uid=1878748071&verifier=ae597523&dpc=1"></iframe>
+</div>
+
+
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font" class="clearfix">
+		
+		
+		
+		
+		
+		
+		
+		
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Pacman">Jacman</a> © 2015 
+		
+		<a href="https://github.com/surlymo/about" target="_blank" title="Surlymo">Surlymo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+
+
+<div id="totop">
+<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+</div>
+
+<script src="/js/totop.js"></script>
+
+
+
+
+  </body>
+</html>
+
+
+<a href="https://github.com/surlymo"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>

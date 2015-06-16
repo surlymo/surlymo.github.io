@@ -1,0 +1,1208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[飞小狐的博客]]></title>
+  <subtitle><![CDATA[Action speak louder than words]]></subtitle>
+  <link href="/atom.xml" rel="self"/>
+  <link href="https://github.com/surlymo/"/>
+  <updated>2015-06-16T09:33:22.728Z</updated>
+  <id>https://github.com/surlymo/</id>
+  
+  <author>
+    <name><![CDATA[Surlymo]]></name>
+    
+  </author>
+  
+  <generator uri="http://zespia.tw/hexo/">Hexo</generator>
+  
+  <entry>
+    <title><![CDATA[【大型网站技术架构笔记】伸缩性、可扩展性与安全]]></title>
+    <link href="https://github.com/surlymo/2014/12/24/%E5%A4%A7%E5%9E%8B%E7%BD%91%E7%AB%99%E7%9A%84%E4%BC%B8%E7%BC%A9%E6%80%A7%E4%B8%8E%E5%8F%AF%E6%89%A9%E5%B1%95%E6%80%A7/"/>
+    <id>https://github.com/surlymo/2014/12/24/大型网站的伸缩性与可扩展性/</id>
+    <published>2014-12-24T13:01:48.000Z</published>
+    <updated>2015-06-16T09:24:42.817Z</updated>
+    <content type="html"><![CDATA[<h2 id="网站架构的伸缩性设计">网站架构的伸缩性设计</h2>
+<p>一般手段有两种。一类是根据功能进行物理分离，一类是对单一功能进行集群化来实现。比如将缓存、静态文件、数据库服务从服务器中拆分进行单独部署，比如对业务逻辑进行横向纵向切分等，都属于通过物理分离来达成整个系统处理能力的伸缩。对服务进行集群化这个应用场景非常广泛。此处无需再多说。</p>
+<h2 id="应用服务器进行伸缩的方法">应用服务器进行伸缩的方法</h2>
+<p>网站进行伸缩过程中，由于采用了集群技术，所以不可避免的要面对服务集群化后的负载均衡问题。以下有集中比较主要的服务器端负载均衡手段。</p>
+<h3 id="HTTP重定向负载均衡">HTTP重定向负载均衡</h3>
+<p>用户发请求给重定向服务器，通过负载均衡算法算出实际物理服务器地址，然后封装在响应头中返给客户端，同时将状态设置为302（redirect）。客户端收取请求后，再访问实际地址。该方法需要和客户端交互两次，且采用了302重定向状态码，有可能会被判断为SEO作弊。所以使用的案例并不多。</p>
+<h3 id="DNS域名解析负载均衡">DNS域名解析负载均衡</h3>
+<p>在DNS服务器中配置多个A记录即可。比如www.baidu.com A 111.18.82.21,www.baidu.com A 111.28.82.21,www.baidu.com A 111.38.82.21.当服务器收到客户端的域名请求时，会通过负载均衡算法（一般是rr）来找到对应的IP并返回给客户端，客户端根据IP地址进行请求。其优点在于将负载均衡交给了DNS，省去了网站自己维护的成本。同时DNS也区分了地域，如此可以较为便捷地就近实现负载均衡。但其缺点在于由于DNS是多级向上查询的机制，所以各级DNS服务器都需要缓存对应的信息。其可能造成短暂时间内的域名解析数据的不一致。比如ip更新、删除等。</p>
+<h3 id="反向代理负载均衡">反向代理负载均衡</h3>
+<p>其即为七层负载均衡。对请求进行转发。同时具备缓存功能。可以对静态资源进行缓存。同时可防止集群被攻击。比较主流的有nginx。</p>
+<h3 id="IP负载均衡">IP负载均衡</h3>
+<p>Load Balancer通过修改报头的源/目的ip地址和端口号，来达到“欺骗”真实服务器的目的。将源ip地址修改为当前BL（或者直接将BL设置为网关服务器），将目的ip地址修改为真实服务器(RS)。当RS处理后返回给LB时，LB再将ip修改还原后返回。由于IP负载均衡过程中往往需要修改端口号。端口属于传输层内容。所以虽然原书认为其属于网络层，但我认为更应该属于<strong>四层负载均衡</strong>，LVS的NAT模式即是如此。LVS还加入了IP隧道模式（TUN），其不再“欺骗”RS，而采取将原报文封装到新包中，通过IP隧道技术发给RS，其相对于DR模式的优势在于不要求网段相同，但缺点在于由于采用了隧道技术而使得运维变得比较麻烦。</p>
+<p>LVS的NAT（网络地址转换）模式：<br><img src="/img/nat.png" alt=""></p>
+<p>LVS的TUN（IP隧道）模式：<br><img src="/img/tun.png" alt=""></p>
+<h3 id="数据链路层负载均衡">数据链路层负载均衡</h3>
+<p>原理简单来说即：LB和RS具备相同虚拟IP地址。通过LB来修改客户端发来的请求的目的mac地址。从而不需修改任何端口和IP地址，即可将请求转发至RS服务器，RS计算后直接将响应返送回客户端。LVS的DR（直接路由）模式即是通过改手段实现的。</p>
+<p>LVS的DR（直接路由）模式：<br><img src="/img/dr.png" alt=""></p>
+<h3 id="负载均衡算法">负载均衡算法</h3>
+<p>一般有轮询（RR）、加权轮询（WRR）、随机、最少请求、源ip散列等手段。</p>
+<h2 id="分布式缓存的伸缩性设计">分布式缓存的伸缩性设计</h2>
+<p>一般考虑引入一致性哈希来进行负载均衡。同时能够达成水平扩展，所以一般采用虚拟化一致性哈希来达成这一目的。具体参考之前博客。按照经验，一台物理服务器一般虚拟出150个左右的虚拟节点较为合适，但也需要case by case。</p>
+<h2 id="数据存储的伸缩性设计">数据存储的伸缩性设计</h2>
+<p>分布式关系型数据库的伸缩一般采用的是分库分表，其就需要一个中间层来实现分库分表逻辑的透明化；尽量避免使用分布式事务，或者采用事务补偿机制。比如一个请求会对A数据库和B数据库进行跨库操作。那么当A执行成功后，执行B失败时，则将A也进行回滚。以此实现事务补偿。所谓的事务补偿即在事务链中，有一个正向操作必然也带有一个回滚的负向操作。除了关系型数据库外，NOSQL数据库非常适合进行系统的伸缩，比如hbase和mongo等。</p>
+<h2 id="网站的可扩展设计">网站的可扩展设计</h2>
+<p>从系统架构层面来说，一般采用的是分布式消息队列和分布式服务。来达成较大程度的解耦和微服务化。分布式服务化之后就需要考虑如何进行通讯，比如可以采用WebService、Thrift、Dubbo等技术。从代码层面上，则需要在进行设计的时候遵循开闭原则，单一职责原则等其他基础设计思想。</p>
+<h2 id="网站的安全性考虑">网站的安全性考虑</h2>
+<h3 id="常见的攻击方式">常见的攻击方式</h3>
+<p>这里主要有三种XSS、SQL注入以及CSRF。除此之外还有文件上传漏洞、路径遍历等方式。<br>XSS即跨站点攻击，通过嵌入代码来获取用户cookie，并以此进行恶意操作。CSRF即在用户已经登陆信任站点的前提下，用户又登陆了一个钓鱼网站，构造请求攻击受信任站点。此时cookie与session与真实访问一样无法识别出来。而SQL注入则是在请求参数中，注入SQL语句，从而来达到恶意攻击的目的。比如请求wwww.baidu.com?username=”surlymo;drop userinfo”。文件上传的话，则可能被上传恶意执行文件从而攻击服务器；路径遍历是攻击者通过url来尝试遍历站点的文件内容。</p>
+<h3 id="应对措施">应对措施</h3>
+<ol>
+<li>应对XSS攻击，对cookie采用http-only标识，声明其禁止被脚本访问。其直接解决了XSS的问题；其次，对用户输入的特殊字符进行消毒。比如识别用户输入的<img src="">时，就进行自动转义。</li>
+<li>应对CSRF共计，采用随机数token，验证码，以及验证HTTP请求头中的referer里的请求来源信息来进行检验。</li>
+<li>针对SQL注入，可以采用语义消毒，对drop等危险操作进行消毒；其次，进行参数绑定，强行指定输入参数只能作为参数，而无法作为SQL语义进行翻译。</li>
+<li>针对文件上传问题，设置文件类型白名单。</li>
+<li>针对路径遍历问题，进行资源的动静分离。url仅能访问静态资源。或者进行权限校验。</li>
+</ol>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="网站架构的伸缩性设计">网站架构的伸缩性设计</h2>
+<p>一般手段有两种。一类是根据功能进行物理分离，一类是对单一功能进行集群化来实现。比如将缓存、静态文件、数据库服务从服务器中拆分进行单独部署，比如对业务逻辑进行横向纵向切分等，都属于通过物理分离来达成整个系]]>
+    </summary>
+    
+      <category term="架构" scheme="https://github.com/surlymo/tags/%E6%9E%B6%E6%9E%84/"/>
+    
+      <category term="网站架构" scheme="https://github.com/surlymo/categories/%E7%BD%91%E7%AB%99%E6%9E%B6%E6%9E%84/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【大型网站技术架构笔记】高性能与高可用架构]]></title>
+    <link href="https://github.com/surlymo/2014/12/23/%E5%A4%A7%E5%9E%8B%E7%BD%91%E7%AB%99%E7%9A%84%E9%AB%98%E6%80%A7%E8%83%BD%E6%9E%B6%E6%9E%84/"/>
+    <id>https://github.com/surlymo/2014/12/23/大型网站的高性能架构/</id>
+    <published>2014-12-23T14:10:59.000Z</published>
+    <updated>2015-06-16T09:24:42.823Z</updated>
+    <content type="html"><![CDATA[<h2 id="性能测试指标">性能测试指标</h2>
+<p>1.响应时间。<br>2.并发数。如果暂时没有对应的准确监控，针对不同业务模型，可以有不一样的并发数的预估。我们的系统进行峰值并发数预估的话，有一种比较粗略的计算方式，即全天请求平均每秒并发数 * 3。但也需要case by case。<br>3.吞吐量。比较常见的有QPS（每秒查询数）、HPS（每秒http请求数）以及TPS（每秒处理事务数）。<br>4.性能计数器。包括系统负载、线程数、cpu、内存使用情况等。可以用top、free、cat /proc/cpuinfo等命令来查看。系统负载的定义为当前被CPU执行的线程数/等待被CPU执行的总线程数。当其值与逻辑cpu个数相同时是最佳状态，其代表所有的资源都被最大限度地被利用。但也有人认为当负载为0.7倍逻辑CPU数时最佳。<br>1)系统负载、任务、cpu、内存使用情况：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line">$ <span class="tag">top</span></div><div class="line"><span class="tag">top</span> <span class="tag">-</span> 22<span class="pseudo">:50</span><span class="pseudo">:09</span> <span class="tag">up</span> 1093 <span class="tag">days</span>,  6<span class="pseudo">:14</span>,  1 <span class="tag">user</span>,  <span class="tag">load</span> <span class="tag">average</span>: 18<span class="class">.18</span>, 14<span class="class">.55</span>, 10<span class="class">.18</span></div><div class="line"><span class="tag">Tasks</span>: 275 <span class="tag">total</span>,  12 <span class="tag">running</span>, 261 <span class="tag">sleeping</span>,   0 <span class="tag">stopped</span>,   2 <span class="tag">zombie</span></div><div class="line"><span class="tag">Cpu</span>(<span class="tag">s</span>):  1<span class="class">.9</span>% <span class="tag">us</span>,  8<span class="class">.5</span>% <span class="tag">sy</span>, 42<span class="class">.1</span>% <span class="tag">ni</span>, 47<span class="class">.3</span>% <span class="tag">id</span>,  0<span class="class">.0</span>% <span class="tag">wa</span>,  0<span class="class">.0</span>% <span class="tag">hi</span>,  0<span class="class">.1</span>% <span class="tag">si</span></div><div class="line"><span class="tag">Mem</span>:  65878264<span class="tag">k</span> <span class="tag">total</span>, 65837688<span class="tag">k</span> <span class="tag">used</span>,    40576<span class="tag">k</span> <span class="tag">free</span>,   130476<span class="tag">k</span> <span class="tag">buffers</span></div><div class="line"><span class="tag">Swap</span>:  1020088<span class="tag">k</span> <span class="tag">total</span>,   635080<span class="tag">k</span> <span class="tag">used</span>,   385008<span class="tag">k</span> <span class="tag">free</span>, 40273792<span class="tag">k</span> <span class="tag">cached</span></div></pre></td></tr></table></figure>
+
+<p>2)内存使用：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="variable">$ </span>free</div><div class="line"><span class="constant">Mem</span><span class="symbol">:</span>      <span class="number">65878264</span>   <span class="number">65757048</span>     <span class="number">121216</span>          <span class="number">0</span>     <span class="number">135408</span>   <span class="number">39984028</span></div><div class="line">-<span class="regexp">/+ buffers/cache</span><span class="symbol">:</span>   <span class="number">25637612</span>   <span class="number">40240652</span></div><div class="line"><span class="constant">Swap</span><span class="symbol">:</span>      <span class="number">1020088</span>     <span class="number">635080</span>     <span class="number">385008</span></div></pre></td></tr></table></figure>
+
+<p>3)逻辑CPU处理器个数：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">$ cat /<span class="keyword">proc</span>/cpuinfo | grep <span class="string">"processor"</span> | wc -l  </div><div class="line"><span class="number">12</span></div></pre></td></tr></table></figure>
+
+<p>需要格外注意的是。需以processor个数为准。cpu cores可能出现偏差。要想获取准确的服务器CPU信息，请根据model_name到网上去搜。</p>
+<h2 id="web前端性能优化">web前端性能优化</h2>
+<h3 id="浏览器访问优化">浏览器访问优化</h3>
+<ol>
+<li>减少http请求。避免建立太多通讯链路。将js、css、图片文件尽可能合并。避免太多请求。同时，对于系统的后端请求也尽可能进行合理的设计，来避免出现太多交互。</li>
+<li>使用浏览器的缓存。http头设置Cache-Control和Expires.js文件名比如可以带时间戳。一旦有更新则更新时间戳，否则缓存；同时尽量避免同一时间更新大量静态资源。</li>
+<li>对静态资源进行压缩。</li>
+<li>css放置在页面最上方，js放下最下面。以提前进行css渲染。同时避免js带来的页面阻塞。但需要case by case。比如页面dom节点需要依赖js生成，则可视情况改变文件位置。</li>
+<li>减少cookie传输。同时让静态资源有独立域名，发送静态资源请求时候不发送cookie。以此减少传输代价。cookie可以通过document.cookie获取。</li>
+</ol>
+<h3 id="CDN加速">CDN加速</h3>
+<p>缓存图片、文件、CSS以及script脚本。但是pc上的CDN加速效果要好于移动端。经过调研发现，last-mile的延迟越高，CDN的相对有效性越差（具体见文章<a href="http://network.51cto.com/art/201408/447078.htm" target="_blank" rel="external">为什么CDN对移动客户端加速“没有”效果</a>）。</p>
+<h3 id="反向代理">反向代理</h3>
+<p>可以提供七层负载均衡（http请求进行均衡策略），并且可以提供静态资源的缓存，请求转发，防止网络攻击等。比较流行的有nginx。</p>
+<h2 id="应用服务器性能优化">应用服务器性能优化</h2>
+<h3 id="分布式缓存">分布式缓存</h3>
+<blockquote>
+<p>网站性能优化的第一定律：优先考虑使用缓存优化性能。</p>
+</blockquote>
+<ol>
+<li>一般来说，存入cache的数据的读写比在2:1以上；且应该是热点数据。</li>
+<li>需要考虑如果采用缓存则可能带来的数据短期内的不一致，或者如果实时更新缓存可能带来的性能和资源开销。</li>
+<li>需要考虑cache一旦失效，大量请求直接命中DB可能带来的服务性能雪崩。所以可以对cache采用集群化部署，以此避免丢失过多数据造成服务压力陡增。</li>
+<li>对于热点数据考虑进行缓存的预热加载。比如高峰期来临前，先将热点数据提前存入缓存。以此提高高峰期的服务性能。</li>
+<li>为了避免恶意攻击，一直query不存在的数据，导致cache无法命中而频繁访问DB，可以将不存在的数据也进行缓存并定期清理。同时有机制对恶意请求进行识别和封禁。</li>
+<li>分布式缓存应该去中心化并集中管理。通过不同实例间的互不通信和同构来保证可扩展性，并降低系统复杂度。</li>
+</ol>
+<h3 id="异步化">异步化</h3>
+<blockquote>
+<p>任何可以晚点做的事情都应该晚点再做。</p>
+</blockquote>
+<p>通过分布式消息队列来实现削峰的目的。通过业务配合技术来解决问题。比如12306的排队。</p>
+<h3 id="集群">集群</h3>
+<p>采用集群也是服务虚拟化的一个体现。用以避免单点问题，同时提供更加高可用，高性能的服务。</p>
+<h3 id="代码优化">代码优化</h3>
+<ol>
+<li>多线程中，如果是密集型计算，线程数不宜超过CPU核数。如果是IO处理，则<strong>线程数=[任务执行时间/(任务执行时间-IO等待时间)] * CPU核数</strong>。除此之外，我们应该将对象设计成无状态对象，多采用局部对象，适当将锁细化。</li>
+<li>进行资源复用。比如采用单例模式，比如采用连接池。</li>
+<li>合理设置JVM参数，以最大程度避免不合理的full gc。</li>
+</ol>
+<h3 id="存储性能优化">存储性能优化</h3>
+<p>关系型数据库的索引采用B+树进行实现。而很多的nosql数据库则采用了LSM树进行存储。LSM在内存中保留最新增删改查的数据，直到内存无法放下，则与磁盘的下一级LSM树进行merge。所以对于写操作较多，而读操作更多的是查询最近写入数据的场景，其性能远高于b+树；采用HDFS结合map reduce进行海量数据存储和分析。其能自动进行并发访问和冗余备份，具有很高的可靠性。其等于是实现了RAID的功能。</p>
+<h2 id="高可用的应用">高可用的应用</h2>
+<ol>
+<li>将服务设置为无状态性，并通过负载均衡来对无状态的服务进行失效转移。</li>
+<li>session进行统一集群化管理。</li>
+<li>通过CAS进行集群中的单点登录控制。</li>
+</ol>
+<h2 id="高可用的服务">高可用的服务</h2>
+<ol>
+<li>分级管理。区分高优先级服务和低优先级服务，以配合可能到来的服务降级。</li>
+<li>超时设置。对于超时处理，应该有对应的重试或者快速失败等策略来应对。</li>
+<li>异步调用。</li>
+<li>服务降级。高峰期间如果适当采取随机拒绝或者关闭服务的方式来达到将用优先的资源服务最优的请求。</li>
+<li>幂等设计。重复的操作不会带来数据状态的变化即称幂等性。除了一些核心写库、交易等操作，其余尽量设计为幂等操作，以便定制负载均衡和失败策略。</li>
+</ol>
+<h2 id="高可用的数据">高可用的数据</h2>
+<ol>
+<li>采用数据备份和失效转移。数据备份分为冷备和热备。失效转移要求在数据失效的情况下迅速切换数据。</li>
+<li>利用缓存。缓存已经越发成为大型系统中不可分割的数据层组成部分。</li>
+<li>利用分布式存储系统，比如NFS，比如Hadoop进行数据存储。</li>
+<li>因为采用了集群、分布式化的服务，所以数据存储过程中的CAP（一致性、可用性、伸缩性）可能要进行一定程度的博弈来进行最后的权衡。有时候，为了A和P可能要牺牲数据的强一致性。这都是需要结合业务进行综合考虑的。</li>
+</ol>
+<h2 id="服务于高可用的监控">服务于高可用的监控</h2>
+<p>对用户行为以及服务器性能进行监控。并根据监控引申出系统报警、失效转移、自动降级等保证高可用的操作。</p>
+<h2 id="总结">总结</h2>
+<p>贯穿这两章，其实也贯穿了整本书，本书的作者希望能够传达这样一个观点：技术是为业务服务的，怎么样在当前的业务领域里面最简单但最高效地实现一个高性能、高可用的服务是我们必须关注的，而这一切的立足点，则是业务。</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="性能测试指标">性能测试指标</h2>
+<p>1.响应时间。<br>2.并发数。如果暂时没有对应的准确监控，针对不同业务模型，可以有不一样的并发数的预估。我们的系统进行峰值并发数预估的话，有一种比较粗略的计算方式，即全天请求平均每秒并发数 * 3。但也需要case]]>
+    </summary>
+    
+      <category term="架构" scheme="https://github.com/surlymo/tags/%E6%9E%B6%E6%9E%84/"/>
+    
+      <category term="网站架构" scheme="https://github.com/surlymo/categories/%E7%BD%91%E7%AB%99%E6%9E%B6%E6%9E%84/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【大型网站技术架构笔记】架构模式与核心要素]]></title>
+    <link href="https://github.com/surlymo/2014/12/09/%E5%A4%A7%E5%9E%8B%E7%BD%91%E7%AB%99%E6%9E%B6%E6%9E%84%E6%A8%A1%E5%BC%8F%E4%B8%8E%E6%A0%B8%E5%BF%83%E8%A6%81%E7%B4%A0/"/>
+    <id>https://github.com/surlymo/2014/12/09/大型网站架构模式与核心要素/</id>
+    <published>2014-12-09T13:30:00.000Z</published>
+    <updated>2015-06-16T09:24:42.815Z</updated>
+    <content type="html"><![CDATA[<h2 id="架构模式">架构模式</h2>
+<p>系统朝大型系统衍变的过程中，如下几个架构模式是我们应该考虑也终将经历的。</p>
+<h3 id="分层">分层</h3>
+<p>即对系统进行横向划分。比如进行MVC分层，又可分为接入层、业务层、核心数据层。应当禁止<strong>跨层调用</strong>以及<strong>逆向调用</strong>。</p>
+<h3 id="分割">分割</h3>
+<p>即对系统进行纵向划分。比如在业务层上拆解业务，核心数据层上划分不同类型的数据，以方便流量控制等。</p>
+<h3 id="分布式">分布式</h3>
+<p>分布式部署一般耳熟能详。也是SOA中重要的一环。但是在没有高效分布式事务的前提下，如何在分布式中保证数据一致性，是首当其冲需要考虑的。分布式概念衍生出很多我们生产环境中常规的一些设计思路，比如将应用和服务分布式化；静态资源分布式部署即动静分离，以方便通过反向代理，加速等手段来加速与优化；nosql、sql等方式存储数据；分布式配置；分布式权限控制；分布式封禁；分布式锁；分布式文件系统如NFS；分布式计算，如阿里的天梯系统等。</p>
+<h3 id="集群">集群</h3>
+<p>到了后期，为保证服务的性能和高可用，一般都会进行集群化部署，即将服务进行虚拟化处置。这中间就需要考虑负载均衡，健康检查，自动剔除等。</p>
+<h3 id="缓存">缓存</h3>
+<p>缓存在大型系统中的地位极其重要。其可以充当数据层的缓冲层，通过缓存热点数据，以及不常改变的数据来达到提升性能，减少数据持久层的压力等目的。缓存从前到后可以分为：CDN加速、反向代理、本地缓存、分布式缓存。</p>
+<h3 id="异步化">异步化</h3>
+<p>当并发过大超过服务吞吐能力时，采用消息队列（比如RabbitMQ, ActiveMQ, Kafka）可以达到削峰的目的。</p>
+<h3 id="冗余">冗余</h3>
+<p>进行适当的热备、冷备也是比较重要的。比如RabbitMQ就可以通过冗余来保证数据的可靠性。</p>
+<h3 id="自动化">自动化</h3>
+<p>自动化部署、发布、测试、监控、报警、降级、资源分配等都是一个必须要考虑的议题。</p>
+<h3 id="安全">安全</h3>
+<p>手机验证码、图形验证码、以及敏感信息过滤、防SQL注入、防XSS攻击（如CSRF）等。</p>
+<h2 id="核心架构要素">核心架构要素</h2>
+<h3 id="性能">性能</h3>
+<p>几个tips：<br><em>浏览器端利用浏览器缓存、使用页面压缩、减少Cookie传输；</em><br><em>传输上采用CDN加速和反向代理服务器；</em><br><em>服务器端利用本地/分布式缓存；结合消息队列实现异步化；集群化虚拟化；</em><br><em>代码层面采用多线程，以及JVM优化，利用弱键等其他手段</em><br><em>数据库端，适当采用索引，利用DB缓存（默认打开），SQL优化，利用NOSQL，NEWSQL优化</em><br>性能的衡量标准一般可以看平响、吞吐量（TPS、QPS）等。</p>
+<h3 id="可用性">可用性</h3>
+<p>一般就三个手段、冗余、集群化、分布式。</p>
+<h3 id="伸缩性">伸缩性</h3>
+<p>服务尽量同构。DB、cache在考虑分布式时尽量提前设计好扩展方案。也可以采用一些主流的对水平伸缩支持较好的nosql、memcached、hbase等。</p>
+<h3 id="扩展性">扩展性</h3>
+<p>这个没啥好说。扩展性依赖于前期良好的架构设计。合理业务逻辑抽象，水平/垂直切割分布式化等等。</p>
+<h3 id="安全性">安全性</h3>
+<p>如上。</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="架构模式">架构模式</h2>
+<p>系统朝大型系统衍变的过程中，如下几个架构模式是我们应该考虑也终将经历的。</p>
+<h3 id="分层">分层</h3>
+<p>即对系统进行横向划分。比如进行MVC分层，又可分为接入层、业务层、核心数据层。应当禁止<stron]]>
+    </summary>
+    
+      <category term="架构" scheme="https://github.com/surlymo/tags/%E6%9E%B6%E6%9E%84/"/>
+    
+      <category term="网站架构" scheme="https://github.com/surlymo/categories/%E7%BD%91%E7%AB%99%E6%9E%B6%E6%9E%84/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【大型网站技术架构笔记】演化过程]]></title>
+    <link href="https://github.com/surlymo/2014/09/24/%E5%A4%A7%E5%9E%8B%E7%BD%91%E7%AB%99%E6%8A%80%E6%9C%AF%E6%9E%B6%E6%9E%84%E7%AC%94%E8%AE%B0-%E6%BC%94%E5%8C%96%E8%BF%87%E7%A8%8B/"/>
+    <id>https://github.com/surlymo/2014/09/24/大型网站技术架构笔记-演化过程/</id>
+    <published>2014-09-24T03:31:34.000Z</published>
+    <updated>2015-06-16T09:24:42.811Z</updated>
+    <content type="html"><![CDATA[<h2 id="开篇明义：">开篇明义：</h2>
+<p>【大型网站技术架构笔记】系列是阅读《大型网站技术架构核心原理与实践》一书的一些笔记，记录了原书的一些重要内容以及我的个人理解。其中很多内容网上都能找得到。其实整本书，我最赞同的是作者阐述的网站架构的价值观——“业务成就技术，而不是相反”。在没有业务场景的时候就一味追逐架构，为技术而技术，或者一上来就想要设计出一个可以适用所有场景的解决方案，是不理智的。我们有的时候可能会陷入技术的怪圈而忘了考虑业务本身。我曾经看到的一句我很喜欢的话，在这边也与诸君分享：<strong>好的架构都是进化来的，不是设计来的</strong>。</p>
+<h2 id="初始阶段">初始阶段</h2>
+<p>初始阶段考虑到使用量规范较小，且快速开发等原因，采用单服务器，将文件、数据库与应用程序一起部署即可。语言可以采用LAMP。如下图：</p>
+<p><img src="/img/frame1.png" alt=""></p>
+<h2 id="应用服务于数据服务分离">应用服务于数据服务分离</h2>
+<p>随着访问量的增多，导致存储空间不足，所以需要将应用与数据存储分离部署。文件和数据库存储需要分开。以避免由于大文件io而导致实时数据库服务的长响应延时。文件服务器需要更多的磁盘空间，数据库服务由于需要进行磁盘检索和数据缓存，所以需要较多的磁盘和内存。而应用服务器由于需要业务逻辑带来的频繁密集计算，所以需要较好的CPU。如下图。</p>
+<p><img src="/img/frame2.png" alt=""></p>
+<h2 id="使用缓存改善网站性能">使用缓存改善网站性能</h2>
+<p>网站访问中，对访问频率比较高的数据进行本地缓存和分布式缓存，能够很好地提高网站性能。什么时候采用本地缓存，什么时候采用分布式缓存呢？一些公司会选择将热点数据存入本地缓存，同时异步写入分布式缓存。而更多时候，我们较少采用本地缓存，因为其会占用宝贵的应用程序的内存空间。采用本地缓存只有那种占用少量内存，且使用率非常高的数据。比如每次请求都需要判断用户是否在黑名单中。此时就可以把名单加载入本地缓存。分布式缓存我们常用的就是memcached和redis。二者的伸缩性都非常优秀。</p>
+<p><img src="/img/frame3.png" alt=""></p>
+<h2 id="应用服务集群化">应用服务集群化</h2>
+<p>单一的服务器存在着并发处理能力不足，高峰期负载过高，单点等问题。此时可以用过简单的同构集群化部署来解决这一问题。</p>
+<p><img src="/img/frame4.png" alt=""></p>
+<h2 id="数据库读写分离">数据库读写分离</h2>
+<p>随着网站的发展，数据库的负载会变得越来越大。而且读、写数据库的操作本身就不是一个时间量级上的操作。如果都混在一起处理，则将很可能导致操作长时间阻塞等其他问题。大部分的主流数据库都自带主从热备的功能，所以部署起来还是比较简单的。而读写分离以及下面将提到的分库之后，我们常会采用一些中间件来对这个底层数据访问进行封装，从而对应用透明。比如mybatis有阿里巴巴的cobar client框架。读写分离后，我们的应用服务的设计中，就需要慎重考虑，读写同步的延时这一最终一致性的保证，对用户体验带来的影响是否可以接受。</p>
+<p><img src="/img/frame5.png" alt=""></p>
+<h2 id="静态资源缓存与加速">静态资源缓存与加速</h2>
+<p>以上说的基本都是服务器端的优化，而用户访问网站时候，带宽、地域等其他因素会对访问体验带来不可忽视的影响。来改善这一体验，加快网站访问速度的办法主要有cdn加速和反向代理。可以认为cdn是一种特殊的反向代理，其也是基于反向代理的原理过来实现的缓存和加速。其主要缓存一些静态资源到离用户最近的网络提供商的机房。而此处的反向代理则是部署在网站服务端的机房。其既可以进行一些静态数据的高速缓存，也由于采用了SSL与内部服务器进行交互从而节省了大量开销。</p>
+<p><img src="/img/frame6.png" alt=""></p>
+<h2 id="采用分布式数据库和分布式文件系统">采用分布式数据库和分布式文件系统</h2>
+<p>随着网站规模的增大，单一的数据库和文件服务器已经无法很好迎合业务场景。所以同理地，也会将其集群化部署。</p>
+<p><img src="/img/frame7.png" alt=""></p>
+<h2 id="采用nosql和搜索引擎">采用nosql和搜索引擎</h2>
+<p>随着数据需求越来越复杂，比如需要对log进行存储和分析以及检索。此时可以引入nosql数据库（如mongodb、hbase等）和搜索引擎技术（如lucense等）。同时，此时的数据源可能已经比较多，可以来自关系型数据库集群、非关系型数据库、缓存、文件系统甚至从消息队列订阅的数据等等。所以需要一个统一的数据访问模块（DAL）来统一对这一过程进行封装和管理。</p>
+<p><img src="/img/frame8.png" alt=""></p>
+<h2 id="业务拆分与分布式化">业务拆分与分布式化</h2>
+<p>前面我们提到，对业务服务进行同构部署来实现业务的并发处理。而我们知道这样简单的加机器在前期确实可以实现服务性能的线性增长，但是到了后期，并发量上来了之后，会发现这一处理将会很快达到瓶颈。而且于此同时，各个子业务的差异性带来的架构以及请求量方面的差异将日趋明显，如果还这样进行同构化的混部，其服务的性能将可能最终跟不上业务的发展，甚至可能导致雪崩。所以最好的做法，<strong>就是对业务服务进行垂直拆分。同时对基础服务进行水平拆分。真正实现SOA</strong></p>
+<p><img src="/img/frame9.png" alt=""></p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="开篇明义：">开篇明义：</h2>
+<p>【大型网站技术架构笔记】系列是阅读《大型网站技术架构核心原理与实践》一书的一些笔记，记录了原书的一些重要内容以及我的个人理解。其中很多内容网上都能找得到。其实整本书，我最赞同的是作者阐述的网站架构的价值观——“业务成就技术]]>
+    </summary>
+    
+      <category term="架构" scheme="https://github.com/surlymo/tags/%E6%9E%B6%E6%9E%84/"/>
+    
+      <category term="网站架构" scheme="https://github.com/surlymo/categories/%E7%BD%91%E7%AB%99%E6%9E%B6%E6%9E%84/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【基于SEDA的异步框架设计与实现】异步框架总体设计与实现]]></title>
+    <link href="https://github.com/surlymo/2014/09/24/%E5%9F%BA%E4%BA%8ESEDA%E7%9A%84%E5%BC%82%E6%AD%A5%E6%A1%86%E6%9E%B6%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0-%E5%BC%82%E6%AD%A5%E6%A1%86%E6%9E%B6%E6%80%BB%E4%BD%93%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0/"/>
+    <id>https://github.com/surlymo/2014/09/24/基于SEDA的异步框架设计与实现-异步框架总体设计与实现/</id>
+    <published>2014-09-24T02:46:51.000Z</published>
+    <updated>2015-06-16T09:24:42.798Z</updated>
+    <content type="html"><![CDATA[<h2 id="框架中stage的理想结构">框架中stage的理想结构</h2>
+<p>前文提到，基于SEDA的异步框架，一个stage的理想结构描述如下：</p>
+<p><img src="/img/seda21.jpg" alt=""></p>
+<p>在这个框架的设想中，一个stage一般需要有如下几个组件：</p>
+<ul>
+<li><strong>D-MQ</strong>：分布式消息中间件。用做事件队列，以进行消息的传递。</li>
+<li><strong>Local-Queue</strong>：本地队列。一般是blockingQueue，用以辅助实现stage内的动态线程池。采用Local-Queue的目的在于避免数据在mq中的堆积导致mq性能下降。</li>
+<li><strong>Thread Pool</strong>：动态线程池。进行事件的并发处理。</li>
+<li><strong>Worker</strong>：事件的具体处理器</li>
+<li><strong>Stage Controller</strong>：stage的性能控制器。用以对stage的队列、资源、调度策略进行控制。</li>
+</ul>
+<p>引此为框架的设计理念，于是有了如下基于SEDA的异步框架的架构设计。</p>
+<h2 id="SEDA异步框架的使用场景">SEDA异步框架的使用场景</h2>
+<p>该异步框架可以用来处理如下几个场景的问题：</p>
+<ul>
+<li><strong>系统资源监控（CPU、内存、线程池、队列）</strong></li>
+<li><strong>外围服务交互情况（API被调用、上游服务交互、请求方等）监控</strong></li>
+<li><strong>系统报警（服务异常、接口压力过大等）</strong></li>
+<li><strong>基于日志和事件的数据挖掘（规则挖掘等）</strong></li>
+<li><strong>重要业务数据切片转储（里程碑消息、核心服务交互数据等）</strong></li>
+<li><strong>异步触发的操作（表A写完后异步写表B等）</strong></li>
+</ul>
+<p>其使用场景大致可如下图所示：</p>
+<p><img src="/img/seda15.jpg" alt=""></p>
+<h2 id="SEDA异步框架系统总体架构">SEDA异步框架系统总体架构</h2>
+<p>因而，基于以上所述适用范围的框架实现之后的系统架构，一般可如下所示：</p>
+<p><img src="/img/seda16.jpg" alt=""></p>
+<p><strong>当然，以上结构并非绝对的，如有需要，你完全可以通过自己定制bundle和bundle之间的拓扑关系，来实现各种复杂的事件处理过程。</strong>你只需要简单通 过声明bundle相关配置，即可实现任何按照你所希望的有向图去关联的bundle。框架提供给了你一个经过轻量级封装后的平台，后面的业务逻辑，就靠 开发者自己了。</p>
+<h2 id="异步框架原生态架构（Virtual_Bundle）">异步框架原生态架构（Virtual Bundle）</h2>
+<p>基于上述的设计理念，最终实现的异步框架的原生态架构如下所示：</p>
+<p><img src="/img/seda17.jpg" alt=""></p>
+<p>异步框架在无任何扩展的时候，其主要组件如下：</p>
+<ul>
+<li><p><strong>bundle</strong>：消息中心的核心组件。由读、处理、写三部分功能组成。同时整合开关、定时器、动态线程池等元素来支持多样化的输入和需求。bundle可以从多种数据源获取数据，并进行数据的处理。<br>1）<em>开关</em>：用以决定该bundle是否被激活。如未被激活，则该bundle将停止读取数据，同时不会在其他服务上产生该bundle对应的数据（比如在mq上生成该bundle的队列、连接、交换机等。）<br>2）<em>定时器</em>：用以指定该bundle是否定时运行。如未指定，则实时运行。<br>3）<em>动态线程池</em>：用以支持bundle以同步/异步方式调用。如未指定，则同步运行。</p>
+</li>
+<li><p><strong>bundle decider</strong>：用以对bundle的关键指标进行决策（是否激活、时效性、同步类型等）。并同时提供健康检查。</p>
+</li>
+<li><strong>Work carrier</strong>：处理数据的最小单元。</li>
+</ul>
+<h2 id="异步框架的AMQP实现（AMQP_Bundle）">异步框架的AMQP实现（AMQP Bundle）</h2>
+<p> 异步框架扩展的AMQP实现，其架构图如下所示：</p>
+<p><img src="/img/seda18.jpg" alt=""></p>
+<p>其主要组件说明如下：</p>
+<h3 id="amqp_bundle">amqp bundle</h3>
+<p>amqp bundle是消息中心的核心组件。由读、处理、写三部分功能组成。在整合开关、定时器、动态线程池之余，提供了配置化的订阅订阅管理以及关键行为的声明。要声明一个bundle仅需声明对应的bean，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>1）<strong>开关</strong>：用以决定该bundle是否被激活。如未被激活，则该bundle将停止读取数据，同时不会在其他服务上产生该bundle对应的数据（比如在 mq上生成该bundle的队列、连接、交换机等）。加上开关之后，最大的优势在于其可以更方便的支持分布式部署。对不同的部署实例设置不一样的 active设置可以完成不同stage在不同机器的启停。默认激活。我们为bundle加上开关，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"active"</span> <span class="attribute">value</span>=<span class="value">"true"</span> /&gt;</span>   </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>2）<strong>定时器</strong>：用以指定该bundle是否定时运行。默认实时运行。我们为bundle加上定时器，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"timer"</span> <span class="attribute">value</span>=<span class="value">"0/30 * * * * ?"</span>/&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>3）<strong>动态线程池</strong>：用以支持bundle内部的实际数据流处理过程以同步/异步方式调用。默认同步运行。我们为bundle加上动态线程池，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"taskExecutor"</span> <span class="attribute">ref</span>=<span class="value">"alarmCollectBundleExecutor"</span>/&gt;</span>         </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span>  </div><div class="line">  </div><div class="line"><span class="comment">&lt;!-- 报警信息收集器对应的动态线程池 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollectBundleExecutor"</span> <span class="attribute">class</span>=<span class="value">"org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor"</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"corePoolSize"</span> <span class="attribute">value</span>=<span class="value">"2"</span> /&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"maxPoolSize"</span> <span class="attribute">value</span>=<span class="value">"30"</span> /&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"queueCapacity"</span> <span class="attribute">value</span>=<span class="value">"200"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>4）<strong>订阅发布</strong>：用以声明收集和推送信息时所需的交换机和密钥。通过支持逗号分隔的多key组合来支持多对多的上下游bundle关系。每个key的配置语 法符合rabbitmq中topic类型的exchange使用规范即可。默认采用“deimos-common”交换机。以下给出几种声明的配置：</p>
+<p>其一：最简易配置。配置要订阅和发布的消息key即可。交换机采用默认配置。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>其二：声明特殊的来源和目的地的交换机：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubDest"</span> <span class="attribute">value</span>=<span class="value">"spec1"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subDest"</span> <span class="attribute">value</span>=<span class="value">"spec2"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>5）<strong>事件队列</strong>：每个bundle默认实现一个固定格式的独立队列。可通过配置另外指定。可支持bundle监听多队列的需求。如需要特别指定一个或多个事件队列，则示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subQueues"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">list</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">ref</span> <span class="attribute">bean</span>=<span class="value">"queueForLogError"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">list</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">property</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span>  </div><div class="line">  </div><div class="line"><span class="comment">&lt;!-- error日志消息的订阅 --&gt;</span>  </div><div class="line"><span class="comment">&lt;!--  </span></div><div class="line">        如队列的声明不采用默认配置，完整声明如下：  </div><div class="line">       &lt;property name="exchangeName" value="deimos-common" /&gt;  </div><div class="line">       &lt;property name="queue" value="logQueue" /&gt;  </div><div class="line">       &lt;property name="bindingKey" value="collect.log.*" /&gt;  </div><div class="line">--&gt;  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"queueForLogError"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.bo.AmqpQueueConfig"</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"bindingKey"</span> <span class="attribute">value</span>=<span class="value">"collect.log.error"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>6）<strong>监听容器</strong>：按照默认配置实现，并发数可通过配置指定。bundle如需额外设定channel数量，则示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"concurrency"</span> <span class="attribute">value</span>=<span class="value">"20"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>7）<strong>关键行为</strong>：用以给发布的消息打上bundle的标签。以辅助其他bundle进行数据筛选和处理。默认以发布的key为关键行为。如需额外声明，则示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"keyAction"</span> <span class="attribute">value</span>=<span class="value">"ALARM_KEY_INFO"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<h3 id="bundle_decider">bundle decider</h3>
+<p>bundle decider用以对bundle的关键指标进行决策（是否激活、时效性、同步类型等）。并同时提供健康检查。默认采用fix strategy decider（定参策略决策器）。可进行配置来指定所需决策器类型，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"strategyDecider"</span> <span class="attribute">value</span>=<span class="value">"FIXED_STRATEGY"</span>/&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<h3 id="work_carrier">work carrier</h3>
+<p>work carrier是处理数据的最小单元。Bundle依据决策器指示的状态同步/异步、实时/定时调用work carrier进行处理。完全对开发者透明。用户者无需关心该组件。bundle将结合decider进行调度。同时work carrier处理后的数据推送过程也对开发者透明。开发者所需要做的就是实现bundle的doWork方法，并将处理之后的数据直接return即 可。doWork方法如下所示：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="annotation">@Override</span>  </div><div class="line"><span class="keyword">public</span> Object <span class="title">doWork</span>(List&lt;DeimosSatelliteRequest&gt; message) <span class="keyword">throws</span> Exception{  </div><div class="line">    <span class="comment">// do somethoing with message then retrun the result;  </span></div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h3 id="exchange">exchange</h3>
+<p>exchange是rabbitmq交换机。默认所有bundle都请求“deimos-common”。可集群化。配置见上。</p>
+<h3 id="amq">amq</h3>
+<p>采用支持amqp协议的rabbitmq。默认单机内存节点。可采用镜像队列或其他方案来进行broker、queue的集群化。</p>
+<h3 id="work_carrier-1">work carrier</h3>
+<p>amq信道。可启动多信道并发监听amq队列消息。支持配置化设定。配置见上。</p>
+<h3 id="work_carrier-1">work carrier</h3>
+<h2 id="bundle启动过程">bundle启动过程</h2>
+<p>在web/servlet容器启动之后，框架中的各个组件将被依次加载，以下给出了bundle的大致启动流程，也正是因为这个启动流程，将上述的各个组件进行串联，并开始执行各自负责的工作：</p>
+<p><img src="/img/seda19.jpg" alt=""></p>
+<h3 id="总的来说">总的来说</h3>
+<p>以上详细介绍了SEDA框架的AMQP实现中主要组件的作用、声明方式以及实现原理。总结一下，异步框架的AMQP实现中，bundle与bundle之间通过分布式 队列rabbitmq进行数据传递，bundle内部提供包含阻塞队列的动态线程池taskExecutor来进行数据处理，同时提供了定时器timer 来控制bundle的定时/实时调用。workcarrier作为消息处理的最小单元，其调用机制完全对用户透明。消息在bundle中的接收、处理和推送由bundle decider组件进行管理。用户只需要简单实现doWork方法和声明bundle配置即可实现消息的处理和传递。</p>
+<h2 id="一个简单的bundle安装示例">一个简单的bundle安装示例</h2>
+<p>你完全可以只按照如下几步，就可以轻松实现你每个stage：</p>
+<ul>
+<li>继承AmqpBundle类，实现doWork方法，完成你的业务逻辑。示例如下（通用收集器demo）：</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">CommonAmqpCollectBundle</span> <span class="keyword">extends</span> <span class="title">SatAmqpBundle</span> </span>{  </div><div class="line">    <span class="javadoc">/** </span></div><div class="line">     * 采用并发队列。性能比阻塞队列高 </div><div class="line">     */  </div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> ConcurrentLinkedQueue&lt;DeimosSatelliteRequest&gt; cacheQueue = <span class="keyword">new</span> ConcurrentLinkedQueue&lt;DeimosSatelliteRequest&gt;();  </div><div class="line">  </div><div class="line">    <span class="annotation">@Override</span>  </div><div class="line">    <span class="keyword">public</span> Object <span class="title">doWork</span>(List&lt;DeimosSatelliteRequest&gt; message) <span class="keyword">throws</span> Exception {  </div><div class="line">        logger.info(<span class="string">"i am now in LogWorker:"</span> + Thread.currentThread().getName() + <span class="string">"message is : "</span> + message  </div><div class="line">                + <span class="string">". now begin to collect!"</span>);  </div><div class="line">          </div><div class="line">        <span class="comment">// 此处不采用锁，因为其带来的影响很有限  </span></div><div class="line">        cacheQueue.addAll(message);  </div><div class="line">        <span class="keyword">if</span> (cacheQueue.size() &lt; SatConstant.LOG_BATCH_SIZE) {  </div><div class="line">            <span class="keyword">return</span> <span class="keyword">null</span>;  </div><div class="line">        }  </div><div class="line">  </div><div class="line">        <span class="comment">// 进行遍历导数据  </span></div><div class="line">        List&lt;DeimosSatelliteRequest&gt; list = <span class="keyword">new</span> ArrayList&lt;DeimosSatelliteRequest&gt;();  </div><div class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; SatConstant.LOG_BATCH_SIZE && !cacheQueue.isEmpty(); i++) {  </div><div class="line">            DeimosSatelliteRequest meta = cacheQueue.poll();  </div><div class="line">              </div><div class="line">            <span class="comment">// 此时队列也已经为空了  </span></div><div class="line">            <span class="keyword">if</span>(meta == <span class="keyword">null</span>){  </div><div class="line">                <span class="keyword">break</span>;  </div><div class="line">            }  </div><div class="line">              </div><div class="line">            <span class="comment">// 校验  </span></div><div class="line">            <span class="keyword">if</span>(meta.getTimestamp() == <span class="keyword">null</span> || meta.getRealData() == <span class="keyword">null</span> || meta.getData() == <span class="keyword">null</span>){  </div><div class="line">                logger.error(<span class="string">"[deimos-satellite]meta param is error! meta request: "</span> + meta);  </div><div class="line">                <span class="keyword">continue</span>;  </div><div class="line">            }  </div><div class="line">              </div><div class="line">            <span class="comment">// 记录关键行为  </span></div><div class="line">            <span class="keyword">if</span>(meta.getData().get(SatApiConstant.KEY_ACTION) == <span class="keyword">null</span>){  </div><div class="line">                meta.getData().put(SatApiConstant.KEY_ACTION, keyAction);  </div><div class="line">            }  </div><div class="line">            list.add(meta);  </div><div class="line">        }  </div><div class="line">          </div><div class="line">        <span class="comment">// 排序 ，以时间戳为key。考虑到可能出现时间戳一致的情况，所以不能用map。考虑到如果log要push到其他平台或者服务上，  </span></div><div class="line">        <span class="comment">// 该切片应该先保证自身有序而不能完全依赖于下一个bundle来处理  </span></div><div class="line">        Collections.sort(list, <span class="keyword">new</span> Comparator&lt;DeimosSatelliteRequest&gt;() {  </div><div class="line">            <span class="annotation">@Override</span>  </div><div class="line">            <span class="keyword">public</span> <span class="keyword">int</span> <span class="title">compare</span>(DeimosSatelliteRequest o1, DeimosSatelliteRequest o2) {  </div><div class="line">                <span class="keyword">if</span> (o1.getTimestamp().longValue() &gt;= o2.getTimestamp()) {  </div><div class="line">                    <span class="keyword">return</span> -<span class="number">1</span>;  </div><div class="line">                } <span class="keyword">else</span> {  </div><div class="line">                    <span class="keyword">return</span> <span class="number">1</span>;  </div><div class="line">                }  </div><div class="line">            }  </div><div class="line">        });   </div><div class="line">        logger.info(<span class="string">"[deimos-satellite]common amqp collctor prepare to push to next bundle............ key action: "</span> + keyAction);        </div><div class="line">        <span class="keyword">return</span> list;  </div><div class="line">    }     </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<ul>
+<li>对新写的bundle类加上配置声明。以下为最轻便的写法。如果需要额外定制其他bundle参数，参照上面的相关说明，进行定制即可。</li>
+</ul>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器，最简易参数声明。在切分成不同stage之后没有什么需要特别关注的潜在性能瓶颈时使用 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<ul>
+<li>启动服务。至此，你的bundle也就随着服务的启动就自动启动并开始工作了。</li>
+</ul>
+<p>以上描述的一个bundle启动的过程，当所需要处理的业务被合理拆解成数个bundle（也就是所谓的stage）之后，就可以形成一个完整的基于工作流的系统实现。以下为基于对来源A进行事件收集的简易报警系统，在被拆解为三个bundle之后的数据流：</p>
+<p><img src="/img/seda20.jpg" alt=""></p>
+<h2 id="框架改进空间">框架改进空间</h2>
+<p>目前框架仅仅提供了一个非常轻量的解决方案，并仅对AMQP进行了实现。后续可有如下几个改进升级的空间：</p>
+<ol>
+<li>构成bundle strategy center。各个bundle的decider（决策器）在决策过程中，可以依赖strategy center进行bundle的相关决策。</li>
+<li>支持bundle集群化、broker集群化，并引入相关策略（比如一致性哈希）来保证基于该框架的系统的高可用。可纳入bundle strategy center。</li>
+<li>框架进一步基于IOC思想，进行面向接口编程的改造和升级。</li>
+</ol>
+<h2 id="附录">附录</h2>
+<p>github代码地址：<a href="https://github.com/surlymo/SedaFramework" target="_blank" rel="external">https://github.com/surlymo/SedaFramework</a></p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="框架中stage的理想结构">框架中stage的理想结构</h2>
+<p>前文提到，基于SEDA的异步框架，一个stage的理想结构描述如下：</p>
+<p><img src="/img/seda21.jpg" alt=""></p>
+<p>在这个框架的设想中，一]]>
+    </summary>
+    
+      <category term="SEDA" scheme="https://github.com/surlymo/tags/SEDA/"/>
+    
+      <category term="分布式" scheme="https://github.com/surlymo/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【基于SEDA的异步框架设计与实现】异步框架技术选型]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/%E5%9F%BA%E4%BA%8ESEDA%E7%9A%84%E5%BC%82%E6%AD%A5%E6%A1%86%E6%9E%B6%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0-%E5%BC%82%E6%AD%A5%E6%A1%86%E6%9E%B6%E6%8A%80%E6%9C%AF%E9%80%89%E5%9E%8B/"/>
+    <id>https://github.com/surlymo/2014/09/23/基于SEDA的异步框架设计与实现-异步框架技术选型/</id>
+    <published>2014-09-23T12:57:32.000Z</published>
+    <updated>2015-06-16T09:24:42.807Z</updated>
+    <content type="html"><![CDATA[<p>在这次实现的SEDA异步框架中，采用的基础架构原型如下：</p>
+<p><img src="/img/seda5.jpg" alt=""></p>
+<p>采用了spring+quartz+fastjson+rabbitmq来实现。和传统SEDA架构区别比较大的地方在于：</p>
+<ul>
+<li>采用分布式mq（使用了rabbitmq）而不是blockingqueue。如此既可以支持以后可能进行的分布式化扩展，也可以使得框架具有高可用性，在大数据处理的时候仍可具有较为客观的性能。同时，消息的传递过程中，采用了高性能的fastjson进行数据序列化和反序列化。使得数据在stage之间的传递速度更快。</li>
+<li>除了分布式mq之外，还提供了本地动态线程池所需要的队列。避免了consumer由于长时间处理导致数据在队列中积压。</li>
+<li>stage利用quartz来提供定时功能，使得stage中的work可以选择定时/实时进行数据处理。从而迎合更多不同类型的需求。（比如定时报警，定时分析监控数据）</li>
+</ul>
+<h2 id="spring">spring</h2>
+<p>spring无需再赘述，使用其IOC、AOP等功能，并同时使用spring的其他组件比如spring-rabbit、spring-quartz等。保证spring各包兼容即可。<br><strong>在异步框架中的使用场景</strong>：整体系统框架搭建和整合。</p>
+<h2 id="quartz">quartz</h2>
+<p>quartz 的介绍文档网上很多，quartz作为一款优秀的定时器框架可以和spring无缝结合，同时还具有java自带的定时器timer所不具备的定时启动的 功能。其类crontab风格的定时任务声明也更符合我们企业级应用过程中的书写风格。之前文章中介绍过使用quartz过程中需要关注的几个点，复述如下：</p>
+<ul>
+<li>Job不能为内部类，否则无法初始化</li>
+<li>保证spring升级到新版本。如果使用老版本比如3.0.5，则会出现如下异常.该case在<a href="http://code.google.com/p/wisematches/issues/detail?id=156上有记录。" target="_blank" rel="external">http://code.google.com/p/wisematches/issues/detail?id=156上有记录。</a></li>
+</ul>
+<blockquote>
+<p>java.lang.IncompatibleClassChangeError: Found interface org.quartz.JobExecutionContext, but class was expected   </p>
+</blockquote>
+<ul>
+<li>引入spring-context-support包来使用quartz相关内容，并保证与其他包的兼容性。</li>
+<li>其定时语法和crontab有些许差别。</li>
+</ul>
+<p><strong>在异步框架中的使用场景</strong>：辅助实现定时功能，从而使得异步框架可以更加灵活的支持各种需求。</p>
+<h2 id="fastjson">fastjson</h2>
+<p>fastjson官网：<a href="http://code.alibabatech.com/wiki/display/FastJSON/Home-zh。如其描" target="_blank" rel="external">http://code.alibabatech.com/wiki/display/FastJSON/Home-zh。如其描</a> 述，<strong>“fastjson是最快的json库。特别在parser方面，fastjson的性能令人惊奇，甚至超越了二进制协议的protobuf”</strong>。虽然 只是fastjson一家之辞，但是从protobuf官网上对各种序列化/反序列化工具进行的性能测试中，也可以看出fastjson优异的性能已经将 传统的jackson工具抛在身后。</p>
+<p><img src="/img/seda6.jpg" alt=""><br><img src="/img/seda7.jpg" alt=""><br><img src="/img/seda8.jpg" alt=""></p>
+<p>除了速度这一最大优势之外，其还具有如下优势：      </p>
+<ul>
+<li>遵循<a href="http://json.org标准，为其官方网站收录的参考实现之一。" target="_blank" rel="external">http://json.org标准，为其官方网站收录的参考实现之一。</a></li>
+<li>功能强大，支持JDK的各种类型，包括基本的JavaBean、Collection、Map、Date、Enum、泛型。</li>
+<li>无依赖，不需要例外额外的jar，能够直接跑在JDK上。</li>
+<li>开源，使用Apache License 2.0协议开源      </li>
+</ul>
+<p><strong>在异步框架中的使用场景</strong>：辅助stage到stage之间的数据通信，负责数据在通信过程中的序列化和反序列化过程。</p>
+<h2 id="rabbitmq">rabbitmq</h2>
+<p>stage与stage之间需要依靠事件队列来进行通信，如果依赖于SEDA官网推荐的BlockingQueue，则无法满足未来的分布式部署。所以决定采用分布式mq来实现。以下比较几个主流的消息中间件：</p>
+<h3 id="activemq">activemq</h3>
+<p>被称为消息中间件中的瑞士军刀。支持JMS，性能不错。开源社区活跃。能与java很好结合。Spring有相应lib。其功能较为完备，可支持P2P和代理，但性能逊于rabbitmq。从性能角度出发来考虑，决定不使用activemq。</p>
+<p><img src="/img/seda9.jpg" alt=""></p>
+<h3 id="zeromq">zeromq</h3>
+<p>性能比其他中间件优异得多。但无法持久化，不能保证数据的可靠性。由于数据的可靠性不能被保证，所以暂时也不考虑。</p>
+<p><img src="/img/seda10.jpg" alt=""></p>
+<h3 id="redis">redis</h3>
+<p>可以当作轻量级的中间件。当传输数据大小少于10k时入队性能优异，数据较大时性能急剧下降。而其出队性能不论数据量大小都十分优秀。考虑到项目实现过程 中可能出现的大于10K的请求响应事件数据（比如推荐关键词、比如与后端服务交互返回的数据），所以不采用redis。</p>
+<p><img src="/img/seda11.jpg" alt=""></p>
+<h3 id="kafka">kafka</h3>
+<p>除此之外，kafka也是一款值得注目的，性能优异的分布式消息中间件，通过producer的push和consumer的poll来实现数据的交互。 kafka自带负载均衡、并有高可用、高吞吐等特性。但是考虑到实际项目的适用情况，暂时还不需要zookeeper集群，broker集群来进行如此大 规模的数据处理。加上其依赖于scala环境，所以要部署和运维显得不那么方便。所以暂时不考虑。</p>
+<p><img src="/img/seda12.jpg" alt=""></p>
+<h3 id="rabbitmq-1">rabbitmq</h3>
+<p>支持AMQP，性能优于activemq。能与java很好结合。Spring有相应lib。环境部署起来不如activemq便捷，需要erlang环境。</p>
+<p><img src="/img/seda13.jpg" alt=""></p>
+<p>在 <a href="http://www.aqee.net/message-queue-shootout/" target="_blank" rel="external">http://www.aqee.net/message-queue-shootout/</a> 一文中对activemq和rabbitmq进行的性能比较显示出rabbitmq更佳的性能。如下图所示：</p>
+<p><img src="/img/seda14.jpg" alt=""></p>
+<p>综上所述，考虑到该次项目所应用的场景和处理数据量的规模，且需要较为优秀的性能，较为便捷的部署方式，能保证消息可靠性以及可持久化，并且对java友好。最终权衡之下，选择了基于AMPQ的rabbitmq消息中间件。</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<p>在这次实现的SEDA异步框架中，采用的基础架构原型如下：</p>
+<p><img src="/img/seda5.jpg" alt=""></p>
+<p>采用了spring+quartz+fastjson+rabbitmq来实现。和传统SEDA架构区别比较大的地方在于：</]]>
+    </summary>
+    
+      <category term="SEDA" scheme="https://github.com/surlymo/tags/SEDA/"/>
+    
+      <category term="Spring" scheme="https://github.com/surlymo/tags/Spring/"/>
+    
+      <category term="Quartz" scheme="https://github.com/surlymo/tags/Quartz/"/>
+    
+      <category term="fastjson" scheme="https://github.com/surlymo/tags/fastjson/"/>
+    
+      <category term="rabbitmq" scheme="https://github.com/surlymo/tags/rabbitmq/"/>
+    
+      <category term="分布式" scheme="https://github.com/surlymo/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【基于SEDA的异步框架设计与实现】为什么使用SEDA]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/%E5%9F%BA%E4%BA%8ESEDA%E7%9A%84%E5%BC%82%E6%AD%A5%E6%A1%86%E6%9E%B6%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BD%BF%E7%94%A8SEDA/"/>
+    <id>https://github.com/surlymo/2014/09/23/基于SEDA的异步框架设计与实现-为什么使用SEDA/</id>
+    <published>2014-09-23T12:49:35.000Z</published>
+    <updated>2015-06-16T09:24:42.795Z</updated>
+    <content type="html"><![CDATA[<p>目前，面对并发环境，主流互联网服务器编程模型有两种：多线程模型以及事件驱动模型。但是这两个模型都不足以解决这个问题。我们来首先看一下这两种编程模型。</p>
+<h2 id="多线程并发模型">多线程并发模型</h2>
+<p>多线程并发模型是目前最普遍的服务器编程模型，该模型的架构如下图所示：</p>
+<p><img src="/img/seda1.jpg" alt=""></p>
+<p>该模型针对每一个请求，会为其创建并分配一个线程。该线程负责这个请求的处理。该模型的优点：执行粒度是整个完整的处理流程。处理逻辑清晰，容易开发。但与此同时缺点也很明显：如果处理过程中某一步骤出现长时间调用（例如网络通信、I/O磁盘读写等），则会阻塞后续的请求，造成资源的浪费。并且，当随着处理请求不断增加，导致并发执行的线程数量太多。过多的线程数量导致系统在线程调度和资源争用上的开销过大。引起系统性能急剧下降。导致系统处理能力下降。</p>
+<h2 id="事件驱动模型">事件驱动模型</h2>
+<p>同时，我们也能看到，很多系统也倾向于使用事件驱动模型，该模型的模型图如下图所示：</p>
+<p><img src="/img/seda2.jpg" alt=""></p>
+<p>该模型的思想为：将处理流程分割成多个步骤，每一个步骤都实现为一个有限状态机（FSM），所有的处理请求会作为事件进入系统，由调度器负责传递给相应的状态机，状态机的处理结果也以事件的形式传给调度器，新的事件将再次被调度器转发给下一个状态机进行处理，直至处理完成。该模型的优点在于，由于将各个处理步骤独立实现，可以很容易的进行系统监测和调整。但是其缺点也不容忽视，即：由于Scheduler的设计和实现过于复杂，针对于不同的应用和系统的逻辑变更需要不同的实现，导致采用这一模型构建出的系统将十分庞大和难以控制。</p>
+<p>综上所述，主流的多线程编程模型以及事件驱动编程模型虽然都各有其优势，但同时也都有其不可避免的缺陷，并不适合在高并发的环境下进行成熟系统的开发。所以这就是为什么我们要选择其他的模式来进行系统开发。以下介绍SEDA架构思想。</p>
+<h2 id="阶段性事件驱动（SEDA）模型">阶段性事件驱动（SEDA）模型</h2>
+<p>针对上述现有主流并发架构之缺陷，若能够实现一种良好支持高并发，并且能够对性能需求自适应的架构，则将在很大程度上优化和提升服务器性能，既能够提高运行速度，又可以减少服务器压力，实现了公司利益与用户体验的双赢。因此，为汲取多线程与事件驱动模型之优点，最大程度规避这两者之缺点，以实现较好的高并发服务器架构，SEDA便应运而生。</p>
+<p>SEDA(Staged Event Driven Architecture)是一种阶段性事件驱动的服务器应用程序架构。它是Matt Welsh博士于加州大学伯克利分校提出的一个高性能应用服务器模型。SEDA架构整合了多线程的服务器模型和事件驱动的服务器模型的优势，它可以高效地管理和控制服务器资源，良好地适应高并发环境，SEDA被设计成一个可伸缩的高可用服务器架构。</p>
+<p>应用服务器之请求处理步骤通常是复杂的、基于事件驱动处理的有穷状态机（FSM），所以实现服务器程序过程就类似用程序实现有穷状态机过程。下图所示的即是一基于SEDA模型http服务器有穷机状态图：</p>
+<p><img src="/img/seda3.jpg" alt=""></p>
+<p>SEDA架构能对有穷状态机进行分析，尔后将相关状态聚集在同一Stage中，Stage间采用队列的方式来进行通信。每一个Stage皆完全独立，均拥有自己的线程池，以及为了专门处理到达这一步骤所必须进行的工作。所有的Stage均通过自身事件队列连接在一起，构成完整的请求处理网络。性能控制器和动态线程池依请求的繁忙程度动态来调整线程池的大小，以达到系统资源的最有分配。每一个Stage由下述四部分组成：</p>
+<ul>
+<li><strong>事件队列</strong>：用以维持Stage间之通信。</li>
+<li><strong>事件处理器</strong>：用以执行请求到这一个Stage中所应执行的工作。</li>
+<li><strong>线程池</strong>：用以提供事件处理器且可以并发执行事件处理之环境。</li>
+<li><strong>性能控制器</strong>：用以对该Stage资源（线程数、队列长度等等）进行调整。</li>
+</ul>
+<p>通过这四部分的协作配合，每一个Stage都可以很好地运行，并且可以控制资源的使用。已经过Stage处理完，若没有后续工作，即可以回收线程池中的线程，来供给其他Stage使用。Stage结构如下图所示。<br>在SEDA架构中，基本的处理单元称为阶段（Stage），一个阶段由事件队列、动态线程池、事件处理器和一个性能控制器四个组件构成。SEDA将一个请求的处理过程分解为一系列的阶段，阶段之间通过事件队列联系，开发人员只负责每个阶段的服务逻辑以及阶段间的连接逻辑，而由各个阶段自身负责资源管理以及负载适应功能。使用这种解耦拆分可以使系统达到高并发性、对负载变化的良好适应性以及高度的可缩放性。</p>
+<p><img src="/img/seda4.jpg" alt=""></p>
+<h2 id="参考资料：">参考资料：</h2>
+<p>[1]    Michael Eckert and Fran¸cois Bry.Complex Event Processing (CEP) [R].德国：Institut f¨ur Informatik, Ludwig-Maximilians-Universit at Munchen，2009.<br>[2]    Matt Welsh.The Staged Event-Driven Architecture for Highly-Concurrent Server Applications [R].美国：University of California, Berkeley，2005.<br>[3]    Rob Von Behren，Jeremy Condit，George C. Necula etc. Scalable Threads for Internet Services[R].美国：University of California, Berkeley，2004</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<p>目前，面对并发环境，主流互联网服务器编程模型有两种：多线程模型以及事件驱动模型。但是这两个模型都不足以解决这个问题。我们来首先看一下这两种编程模型。</p>
+<h2 id="多线程并发模型">多线程并发模型</h2>
+<p>多线程并发模型是目前最普遍的服务器编程模型，该模型]]>
+    </summary>
+    
+      <category term="SEDA" scheme="https://github.com/surlymo/tags/SEDA/"/>
+    
+      <category term="分布式" scheme="https://github.com/surlymo/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【基于SEDA的异步框架设计与实现】SEDA国内外研究现状]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/%E5%9F%BA%E4%BA%8ESEDA%E7%9A%84%E5%BC%82%E6%AD%A5%E6%A1%86%E6%9E%B6%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%AE%9E%E7%8E%B0-SEDA%E5%9B%BD%E5%86%85%E5%A4%96%E7%A0%94%E7%A9%B6%E7%8E%B0%E7%8A%B6/"/>
+    <id>https://github.com/surlymo/2014/09/23/基于SEDA的异步框架设计与实现-SEDA国内外研究现状/</id>
+    <published>2014-09-23T12:45:33.000Z</published>
+    <updated>2015-06-16T09:24:42.780Z</updated>
+    <content type="html"><![CDATA[<h2 id="SEDA架构的起源和特点">SEDA架构的起源和特点</h2>
+<p>当前最流行的互联网服务器模型基本都是基于多线程／进程并发服务模型。然而当线程数目增加到一定值后，系统性能会下降，这就限制了系统支持高并发请求的能力。这种缺陷是多线程／进程本身的架构造成的。加州大学伯克利分校的Matt Welsh提出了一种新的服务器软件架构SEDA。SEDA是Staged Event-Driven Architecture的 缩略语，其基本原理是：应用程序被构造为阶段网络，阶段之间靠事件队列联系，应用程序设计者只负责每个阶段的服务逻辑和阶段间的连接逻辑，而由各阶段自身 负责资源管理和负载适应功能。使用这种分解使系统达到高并发性、高效率性、对负载变化的良好适应性以及良好的系统缩放性。</p>
+<h2 id="SEDA架构应用情况">SEDA架构应用情况</h2>
+<p>目前SEDA架构在国外已经受到了很多开发人员的青睐。在国外，SEDA架构已经在很多科研机构中被用以进行成熟的学术研究以及实践应用。加州大学伯克利分校、哈佛大学、普林斯顿大学以及微软研究所等闻名于世的大学和科研机构。Matt Welsh博士及其团队已经基于JAVA实现了SEDA架构——Standstorm，并基于此开发了几个应用服务器系统。劳伦斯伯克利国家实验室同样提供了依照SEDA架构开发了开源项目SEA。spring也推出了基于SEDA架构的spring-batch。与此同时，SEDA也已经被用以进行企业级的应用开发。著名的开源企业服务总线（ESB）——Mule即实现了SEDA架构。 与国外欣欣向荣的SEDA架构发展现状相比，国内目前使用SEDA架构的企业仍然不多，大多的企业仍然由于技术成本以及其他原因，更倾向于使用主流的多线程、事件驱动服务器模型进行开发。这就导致了在遭遇高并发环境的时候，相当多的企业只能被动地进行硬件升级，而未能很好地利用服务器资源。虽然SEDA在国内多仍停留在起步阶段，但是仍然可以看到包括百度、58同城在内的少数互联网企业已经在内部推广SEDA架构</p>
+<h2 id="目前仍存在的问题">目前仍存在的问题</h2>
+<p>采用SEDA架构的系统一般都会面临两个值得关注的问题，其一： 即如何合理地进行资源的初始化分配。如果未能进行合理地线程以及队列资源分配，导致出现资源需求较大的阶段被分配了数量不足的线程数，或者资源需求较小的 阶段被分配了数量过多的线程数，则会造成系统吞吐量的下滑，甚至会导致系统性能在高并发下远低于多线程模型系统。其二，如何合理地对系统进行阶段划分，不 合理的阶段划分将导致系统性能的下滑。要解决这两个问题就必须在很大程度上依赖于架构搭建者对于系统的熟悉程度以及数据量的评估。SEDA架构的提出者 Matt Welsh博士就曾收到非常多开发者对于SEDA架构性能的质疑信件，他也对此做出了相应的解释。所以如何合理使用SEDA架构，是所有架构搭建者在搭建 SEDA时必须仔细考虑的。</p>
+<h2 id="今后发展的趋势">今后发展的趋势</h2>
+<p>随着互联网信息爆炸式的增长，越来越多的互联网服务器将遭遇高并发、海量数据的环境。在这种环境下，多线程以及事件驱动模型服务器已经无法适应。SEDA 架构在高并发下优异的性能表现，已经引起了越来越多企业的关注，而且该架构也体现了SOA的思想，符合以后企业进行分布式SOA系统开发的需求。所以可以 预见，接下来的时间里，SEDA将会得到广泛地应用，在互联网SOA系统中扮演不可或缺的角色。而在这之中，互联网消息提醒系统由于消息处理和消息发送之 间可能具有巨大的资源消耗差异性，已经首当其冲地成为了SEDA的试验田。</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="SEDA架构的起源和特点">SEDA架构的起源和特点</h2>
+<p>当前最流行的互联网服务器模型基本都是基于多线程／进程并发服务模型。然而当线程数目增加到一定值后，系统性能会下降，这就限制了系统支持高并发请求的能力。这种缺陷是多线程／进程本身的架构造成的。加州大]]>
+    </summary>
+    
+      <category term="SEDA" scheme="https://github.com/surlymo/tags/SEDA/"/>
+    
+      <category term="分布式" scheme="https://github.com/surlymo/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[JVM学习笔记一]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/JVM%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0%E4%B8%80/"/>
+    <id>https://github.com/surlymo/2014/09/23/JVM学习笔记一/</id>
+    <published>2014-09-23T12:26:44.000Z</published>
+    <updated>2015-06-16T09:24:42.751Z</updated>
+    <content type="html"><![CDATA[<h2 id="JDK和JRE的区别">JDK和JRE的区别</h2>
+<p>JDK是开发库，而JRE只是运行环境。JRE没有编译器，也没有JAVA API里面非JAVASE API的部分等。eclipse之所以用jre也能运行，是因为IDE内部集成了编译器。</p>
+<h2 id="运行时数据区域">运行时数据区域</h2>
+<h3 id="程序计数器（program_counter_register）">程序计数器（program counter register）</h3>
+<p>存储字节码指令的地址。如果是java方法，则记录对应的地址，如果是native方法，则为undefined。关于字节码指令：<a href="http://blog.csdn.net/chenzhp/article/details/1798166" target="_blank" rel="external">http://blog.csdn.net/chenzhp/article/details/1798166</a></p>
+<h3 id="java虚拟机栈（java_virtual_macheine_Stacks）">java虚拟机栈（java virtual macheine Stacks）</h3>
+<p>其存储如下数据：</p>
+<ul>
+<li>局部变量表</li>
+<li>操作数栈</li>
+<li>动态链接</li>
+<li>方法返回地址</li>
+</ul>
+<p>该栈中常见的两种错误：</p>
+<ul>
+<li>StackOverflowError 栈太大。比如线程里面声明太多对象等。</li>
+<li>OutOfmemoryError  JVM内存不足。比如线程太多。</li>
+</ul>
+<h3 id="本地方法栈（Native_Method_Stacks）">本地方法栈（Native Method Stacks）</h3>
+<p>java虚拟机栈为java方法服务，本地方法栈为native方法服务。</p>
+<h3 id="java堆（Java_Heap）">java堆（Java Heap）</h3>
+<p>放实例和数组，可分为新生代和老年代</p>
+<h3 id="方法区（Method_Area）">方法区（Method Area）</h3>
+<p>其存储如下数据：</p>
+<ul>
+<li>类型的常量池：关联的所有类型，域，方法以及符号引用</li>
+<li>域信息：修饰符、域名、与类型、声明顺序等</li>
+<li>方法信息： 方法名、返回信息、参数类型、个数等。</li>
+<li>类静态成员变量</li>
+<li>对类加载器的引用。声明类采用了哪一个类加载器。只有类加载器一致时才能判定两个类的类型一致</li>
+<li>Class实例的引用。Class.forName()就是以此实现。</li>
+</ul>
+<h3 id="运行时常量池（Runtime_Constant_Pool）">运行时常量池（Runtime Constant Pool）</h3>
+<p>运行时常量池是把Class文件常量池加载进来。存储各种常量。一开始是符号引用，使用到的时候会替换成直接引用。运行期间也可动态更新。可以认为其是class文件常量池的一个动态扩充池。经典的例子String.intern()<br>参考资料：<a href="http://hllvm.group.iteye.com/group/topic/40008，" target="_blank" rel="external">http://hllvm.group.iteye.com/group/topic/40008，</a><br>参考资料：<a href="http://blog.sina.com.cn/s/blog_69dcd5ed0101171h.html" target="_blank" rel="external">http://blog.sina.com.cn/s/blog_69dcd5ed0101171h.html</a></p>
+<h3 id="直接内存（Direct_Memory）">直接内存（Direct Memory）</h3>
+<p>使用native方法时候直接分配的堆外内存。不受jvm控制。但受机器内存限制。</p>
+<h2 id="指针和引用的区别">指针和引用的区别</h2>
+<p>对象引用的实现方式会根据虚拟机的不同有不同实现，一般是指针或者句柄，指针直接指向物理内存地址，句柄则是一种指向指针的指针。因为windows操作系统的对象物理地址经常变化。所以通过句柄这种32位的索引来唯一标识一个windows自身的管理的资源。（窗口或文件，文件包括了本地io和网络io/socket等。）</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="JDK和JRE的区别">JDK和JRE的区别</h2>
+<p>JDK是开发库，而JRE只是运行环境。JRE没有编译器，也没有JAVA API里面非JAVASE API的部分等。eclipse之所以用jre也能运行，是因为IDE内部集成了编译器。</p>
+<h2 i]]>
+    </summary>
+    
+      <category term="JVM" scheme="https://github.com/surlymo/tags/JVM/"/>
+    
+      <category term="JDK使用" scheme="https://github.com/surlymo/categories/JDK%E4%BD%BF%E7%94%A8/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[分布式锁的三种实现方式]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84%E4%B8%89%E7%A7%8D%E5%AE%9E%E7%8E%B0%E6%96%B9%E5%BC%8F/"/>
+    <id>https://github.com/surlymo/2014/09/23/分布式锁的三种实现方式/</id>
+    <published>2014-09-23T11:49:55.000Z</published>
+    <updated>2015-06-16T09:24:42.776Z</updated>
+    <content type="html"><![CDATA[<h2 id="写在前面">写在前面</h2>
+<p>在进行大型网站技术架构设计以及业务实现的过程中，多少都会遇到需要使用分布式锁的情况。那么问题也就接踵而至。分布式锁zk和memcached以及redis三者都能实现，同样是分布式锁，三者的区别何在？各自适用什么场景？</p>
+<h2 id="Zookeeper">Zookeeper</h2>
+<p>1、实现原理：</p>
+<ul>
+<li>基于zookeeper瞬时有序节点实现的分布式锁，其主要逻辑如下（该图来自于IBM网站）。大致思想即为：每个客户端对某个功能加锁时，在zookeeper上的与该功能对应的指定节点的目录下，生成一个唯一的瞬时有序节点。判断是否获取锁的方式很简单，只需要判断有序节点中序号最小的一个。当释放锁的时候，只需将这个瞬时节点删除即可。同时，其可以避免服务宕机导致的锁无法释放，而产生的死锁问题。</li>
+</ul>
+<p><img src="/img/zk_dt_lock.jpg" alt=""></p>
+<p>2、优点</p>
+<ul>
+<li>锁安全性高，zk可持久化，且能实时监听获取锁的客户端状态。一旦客户端宕机，则瞬时节点随之消失，zk因而能第一时间释放锁。这也省去了用分布式缓存实现锁的过程中需要加入超时时间判断的这一逻辑。</li>
+</ul>
+<p>3、缺点</p>
+<ul>
+<li>性能开销比较高。因为其需要动态产生、销毁瞬时节点来实现锁功能。所以不太适合直接提供给高并发的场景使用。</li>
+</ul>
+<p>4、实现</p>
+<ul>
+<li>可以直接采用zookeeper第三方库curator即可方便地实现分布式锁。</li>
+</ul>
+<p>5、适用场景</p>
+<ul>
+<li>对可靠性要求非常高，且并发程度不高的场景下使用。如核心数据的定时全量/增量同步等。</li>
+</ul>
+<h2 id="memcached分布式锁">memcached分布式锁</h2>
+<p>1、实现原理</p>
+<ul>
+<li>memcached带有add函数，利用add函数的特性即可实现分布式锁。add和set的区别在于：如果多线程并发set，则每个set都会成功，但最后存储的值以最后的set的线程为准。而add的话则相反，add会添加第一个到达的值，并返回true，后续的添加则都会返回false。利用该点即可很轻松地实现分布式锁。</li>
+</ul>
+<p>2、优点</p>
+<ul>
+<li>并发高效</li>
+</ul>
+<p>3、缺点</p>
+<ul>
+<li>memcached采用列入LRU置换策略，所以如果内存不够，可能导致缓存中的锁信息丢失。</li>
+<li>memcached无法持久化，一旦重启，将导致信息丢失。</li>
+</ul>
+<p>4、使用场景</p>
+<ul>
+<li>高并发场景。需要1)加上超时时间避免死锁;2)提供足够支撑锁服务的内存空间;3)稳定的集群化管理。</li>
+</ul>
+<h2 id="redis分布式锁">redis分布式锁</h2>
+<p>redis分布式锁即可以结合zk分布式锁锁高度安全和memcached并发场景下效率很好的优点，其实现方式和memcached类似，采用setnx即可实现。需要注意的是，这里的redis也需要设置超时时间。以避免死锁。可以利用jedis客户端实现。参考资料<a href="http://blog.csdn.net/java2000_wl/article/details/8740911" target="_blank" rel="external">Redis实现分布式锁</a>。</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="写在前面">写在前面</h2>
+<p>在进行大型网站技术架构设计以及业务实现的过程中，多少都会遇到需要使用分布式锁的情况。那么问题也就接踵而至。分布式锁zk和memcached以及redis三者都能实现，同样是分布式锁，三者的区别何在？各自适用什么场景？</p>
+]]>
+    </summary>
+    
+      <category term="memcached" scheme="https://github.com/surlymo/tags/memcached/"/>
+    
+      <category term="redis" scheme="https://github.com/surlymo/tags/redis/"/>
+    
+      <category term="zookeeper" scheme="https://github.com/surlymo/tags/zookeeper/"/>
+    
+      <category term="分布式" scheme="https://github.com/surlymo/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[如何在单测中隔离每个case对DB数据的操作]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/%E5%A6%82%E4%BD%95%E5%9C%A8%E5%8D%95%E6%B5%8B%E4%B8%AD%E9%9A%94%E7%A6%BB%E6%AF%8F%E4%B8%AAcase%E5%AF%B9DB%E6%95%B0%E6%8D%AE%E7%9A%84%E6%93%8D%E4%BD%9C/"/>
+    <id>https://github.com/surlymo/2014/09/23/如何在单测中隔离每个case对DB数据的操作/</id>
+    <published>2014-09-23T11:08:53.000Z</published>
+    <updated>2015-06-16T09:24:42.827Z</updated>
+    <content type="html"><![CDATA[<h1 id="起因">起因</h1>
+<p>在公司项目中对单测框架做升级的时候，引入了h2数据库，同时希望每个case在访问h2做读写操作之后，不会影响下一个case对h2的数据访问。于是开始进行技术方案调研。经过调研之后，得出一个小经验——<strong>没有最好的技术，只有最合适的技术</strong></p>
+<h2 id="试试unitils？">试试unitils？</h2>
+<p>对于数据库的测试，首先想到的肯定是dbunit和unitils。但经过调研，发现其有如下问题而最终没有采用该技术框架进行单测。 </p>
+<ol>
+<li>和现有单测框架存在测试入口不一致</li>
+<li>构造数据过程繁琐</li>
+<li>xml或者xsl导入方式相比于SQL脚本来说更加麻烦等问题</li>
+</ol>
+<h2 id="那么试试事务回滚？">那么试试事务回滚？</h2>
+<p>其次想到的是采用事务管理。spring的testcontext框架中提供了<strong>AbstractTransactionalJUnit4SpringContextTests</strong>来支持case的事务。那么我们自然就可以每个case之前行都灌入数据，case执行完再通过事务roll back。一切看起来都在正确的轨道上运行。但是，问题随之出现了：</p>
+<ol>
+<li>系统由于庞大的数据和业务需求而对数据库进行了分库分表。存在多达30套的datasource。</li>
+<li>并非是由JTA管理。系统保证的是最终一致性。</li>
+</ol>
+<p>我们回过来看，Spring的AbstractTransactionalJUnit4SpringContextTests只能支持单datasource。其源码如下。因而该方案也不可行。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="javadoc">/** </span></div><div class="line"> * Set the DataSource, typically provided via Dependency Injection. </div><div class="line"> */  </div><div class="line"><span class="annotation">@Autowired</span>  </div><div class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setDataSource</span>(DataSource dataSource) {  </div><div class="line">    <span class="keyword">this</span>.simpleJdbcTemplate = <span class="keyword">new</span> SimpleJdbcTemplate(dataSource);  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h2 id="不还有@DirtiesContext注解吗？">不还有@DirtiesContext注解吗？</h2>
+<p>上面都被否了后，这时候，想到的是采用spring单测框架中所提供的@DirtiesContext注解，让每个case启动前都去重新加载一遍spring上下文，这样的话，等于每次都把h2数据库给清空了，似乎这样就可以完美地解决问题。但是DirtiesContext注解很吃内存，如果case数量太多，会严重影响执行时间，甚至让工程在单测过程中可能出现内存不足的报警，其最终直接导致CI任务执行失败。所以这个方案也被否了。难道，就没有解决办法了吗？</p>
+<h2 id="自力更生">自力更生</h2>
+<p>最后采用的折衷方案是，让每个case在执行前执行建库建表语句，再写所需要的DML语句（注解化），case执行完再把所有表删除。其中的建表删表操作都是由框架负责，<strong>对使用者完全透明</strong>。这个方案和系统目前使用的单测框架能够很好结合。这一过程中采用了Spring的TestExecutionListener，通过监听即完成这一过程。以下为监听器的部分代码：</p>
+<p>在case执行前加载：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="annotation">@Override</span></div><div class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">beforeTestMethod</span>(TestContext testContext) <span class="keyword">throws</span> Exception {</div><div class="line">    DBCooker cooker = testContext.getApplicationContext().getBean(DBCooker.class);</div><div class="line">    SaturnTestCore.setDbCooker(cooker);</div><div class="line">    <span class="comment">// 确定需要访问h2，此时在进行数据加载</span></div><div class="line">    <span class="keyword">if</span> (isNeedVisitH2()) {</div><div class="line">        SaturnTestCore.unifiedEntrance(SaturnSuperTestType.H2, <span class="keyword">false</span>);</div><div class="line">    }</div><div class="line">}</div></pre></td></tr></table></figure>
+
+<p>在case执行后销毁：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="annotation">@Override</span></div><div class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">afterTestMethod</span>(TestContext testContext) <span class="keyword">throws</span> Exception {</div><div class="line">    <span class="comment">// 确定需要访问h2，此时在进行数据销毁</span></div><div class="line">    <span class="keyword">if</span> (isNeedVisitH2()) {</div><div class="line">        SaturnTestCore.unifiedEntrance(SaturnSuperTestType.H2, <span class="keyword">true</span>);</div><div class="line">    }</div><div class="line">}</div></pre></td></tr></table></figure>
+
+]]></content>
+    <summary type="html">
+    <![CDATA[<h1 id="起因">起因</h1>
+<p>在公司项目中对单测框架做升级的时候，引入了h2数据库，同时希望每个case在访问h2做读写操作之后，不会影响下一个case对h2的数据访问。于是开始进行技术方案调研。经过调研之后，得出一个小经验——<strong>没有最好的技术，只有]]>
+    </summary>
+    
+      <category term="UT" scheme="https://github.com/surlymo/tags/UT/"/>
+    
+      <category term="敏捷之路" scheme="https://github.com/surlymo/categories/%E6%95%8F%E6%8D%B7%E4%B9%8B%E8%B7%AF/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【备忘】rabbitmq学习笔记]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/rabbitmq%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/"/>
+    <id>https://github.com/surlymo/2014/09/23/rabbitmq学习笔记/</id>
+    <published>2014-09-23T09:55:11.000Z</published>
+    <updated>2015-06-16T09:24:42.761Z</updated>
+    <content type="html"><![CDATA[<h2 id="写在前面">写在前面</h2>
+<p>前一阵子写SEDA异步框架的时候，使用了rabbitmq作为分布式消息队列（见前文），把一些学习官网教程的笔记简单备忘。示例都来自官网</p>
+<h2 id="Part_2_Work_Queues">Part 2 Work Queues</h2>
+<ul>
+<li><p>round-robin dispatchering<br>缺陷：存在不能准确负载均衡的弊端</p>
+</li>
+<li><p>fair dispatch  —&gt; 针对<strong>管道</strong><br>采用如下语句来决定接受和分发的消息上限。缺陷：可能带来队列阻塞</p>
+</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">channel.basicQos(prefetchCount);</div></pre></td></tr></table></figure>
+
+<ul>
+<li>message acknowledge  —&gt; 针对<strong>消费者</strong></li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">boolean</span> autoAck = <span class="keyword">false</span>;channel.basicConsume(<span class="string">"hello"</span>, autoAck, consumer);<span class="comment">//默认是true，别用反了</span></div><div class="line"></div><div class="line"><span class="keyword">while</span> (<span class="keyword">true</span>) {</div><div class="line">  QueueingConsumer.Delivery delivery = consumer.nextDelivery();</div><div class="line">  <span class="comment">//...     </span></div><div class="line">  channel.basicAck(delivery.getEnvelope().getDeliveryTag(), <span class="keyword">false</span>);<span class="comment">// 记得手动加上发送ack。不然server会认为client没收到</span></div><div class="line">}</div></pre></td></tr></table></figure>
+
+<ul>
+<li>Message durability  —&gt; 针对<strong>队列</strong></li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">boolean</span> durable = <span class="keyword">true</span>;</div><div class="line">channel.queueDeclare(<span class="string">"hello"</span>, durable, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);</div></pre></td></tr></table></figure>
+
+<ul>
+<li>persistent —&gt; 针对<strong>发布者</strong></li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">import</span> com.rabbitmq.client.MessageProperties;</div><div class="line">channel.basicPublish(<span class="string">""</span>, <span class="string">"task_queue"</span>, MessageProperties.PERSISTENT_TEXT_PLAIN,message.getBytes());</div></pre></td></tr></table></figure>
+
+<p><strong>例子</strong></p>
+<ul>
+<li>任务类：</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">NewTask</span> </span>{  </div><div class="line">  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String TASK_QUEUE_NAME = <span class="string">"task_queue"</span>;  </div><div class="line">  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                      <span class="keyword">throws</span> java.io.IOException {  </div><div class="line">  </div><div class="line">    ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">    factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">    Connection connection = factory.newConnection();  </div><div class="line">    Channel channel = connection.createChannel();  </div><div class="line">  </div><div class="line">    channel.queueDeclare(TASK_QUEUE_NAME, <span class="keyword">true</span>, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);  </div><div class="line">  </div><div class="line">    String message = getMessage(argv);  </div><div class="line">  </div><div class="line">    channel.basicPublish( <span class="string">""</span>, TASK_QUEUE_NAME,  </div><div class="line">            MessageProperties.PERSISTENT_TEXT_PLAIN,  </div><div class="line">            message.getBytes());  </div><div class="line">    System.out.println(<span class="string">" [x] Sent '"</span> + message + <span class="string">"'"</span>);  </div><div class="line">  </div><div class="line">    channel.close();  </div><div class="line">    connection.close();  </div><div class="line">  }       </div><div class="line">  <span class="comment">//...  </span></div><div class="line">}</div></pre></td></tr></table></figure>
+
+<ul>
+<li>消费者：</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Worker</span> </span>{  </div><div class="line">  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String TASK_QUEUE_NAME = <span class="string">"task_queue"</span>;  </div><div class="line">  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                      <span class="keyword">throws</span> java.io.IOException,  </div><div class="line">                      java.lang.InterruptedException {  </div><div class="line">  </div><div class="line">    ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">    factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">    Connection connection = factory.newConnection();  </div><div class="line">    Channel channel = connection.createChannel();  </div><div class="line">  </div><div class="line">    channel.queueDeclare(TASK_QUEUE_NAME, <span class="keyword">true</span>, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);  </div><div class="line">    System.out.println(<span class="string">" [*] Waiting for messages. To exit press CTRL+C"</span>);  </div><div class="line">  </div><div class="line">    channel.basicQos(<span class="number">1</span>);  </div><div class="line">  </div><div class="line">    QueueingConsumer consumer = <span class="keyword">new</span> QueueingConsumer(channel);  </div><div class="line">    channel.basicConsume(TASK_QUEUE_NAME, <span class="keyword">false</span>, consumer);  </div><div class="line">  </div><div class="line">    <span class="keyword">while</span> (<span class="keyword">true</span>) {  </div><div class="line">          QueueingConsumer.Delivery delivery = consumer.nextDelivery();  </div><div class="line">          String message = <span class="keyword">new</span> String(delivery.getBody());  </div><div class="line">  </div><div class="line">          System.out.println(<span class="string">" [x] Received '"</span> + message + <span class="string">"'"</span>);    </div><div class="line">          doWork(message);  </div><div class="line">          System.out.println(<span class="string">" [x] Done"</span> );  </div><div class="line">  </div><div class="line">          channel.basicAck(delivery.getEnvelope().getDeliveryTag(), <span class="keyword">false</span>);  </div><div class="line">    }  </div><div class="line">  }  </div><div class="line">  <span class="comment">//...  </span></div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h2 id="Part_3_Publish/Subscribe">Part 3 Publish/Subscribe</h2>
+<ul>
+<li><p>Exchanges(类似block)<br>Type：direct, topic, headers, fanout(类似广播)<br>Declared way:  channel.exchangeDeclare(“logs”, “fanout”);</p>
+</li>
+<li><p>Temporary queue<br>Non-durable, exclusive, autodelete<br>String queueName = channel.queueDeclare().getQueue();</p>
+</li>
+<li><p>Bindings<br>channel.queueBind(queueName, “logs”, “”);</p>
+</li>
+</ul>
+<h2 id="example:">example:</h2>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">EmitLog</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> java.io.IOException {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"fanout"</span>);  </div><div class="line">        String message = getMessage(argv);  </div><div class="line">        channel.basicPublish(EXCHANGE_NAME, <span class="string">""</span>, <span class="keyword">null</span>, message.getBytes());  </div><div class="line">        System.out.println(<span class="string">" [x] Sent '"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        channel.close();  </div><div class="line">        connection.close();  </div><div class="line">    }  </div><div class="line">    <span class="comment">//...  </span></div><div class="line">}  </div><div class="line">   </div><div class="line">   </div><div class="line">   </div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ReceiveLogs</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> java.io.IOException,  </div><div class="line">                  java.lang.InterruptedException {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"fanout"</span>);  </div><div class="line">        String queueName = channel.queueDeclare().getQueue();  </div><div class="line">        channel.queueBind(queueName, EXCHANGE_NAME, <span class="string">""</span>);  </div><div class="line">        System.out.println(<span class="string">" [*] Waiting for messages. To exit press CTRL+C"</span>);  </div><div class="line">        QueueingConsumer consumer = <span class="keyword">new</span> QueueingConsumer(channel);  </div><div class="line">        channel.basicConsume(queueName, <span class="keyword">true</span>, consumer);  </div><div class="line">        <span class="keyword">while</span> (<span class="keyword">true</span>) {  </div><div class="line">            QueueingConsumer.Delivery delivery = consumer.nextDelivery();  </div><div class="line">            String message = <span class="keyword">new</span> String(delivery.getBody());  </div><div class="line">            System.out.println(<span class="string">" [x] Received '"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        }  </div><div class="line">    }  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h2 id="Part_4_Routing">Part 4 Routing</h2>
+<ol>
+<li><p>Direct exchange<br>Type：direct, topic, headers, fanout(类似广播)<br>Declared way:  channel.exchangeDeclare(“logs”, “fanout”);</p>
+</li>
+<li><p>Multiple bindings</p>
+</li>
+</ol>
+<p><strong>example</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">EmitLogDirect</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"direct_logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> java.io.IOException {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"direct"</span>);  </div><div class="line">        String severity = getSeverity(argv);  </div><div class="line">        String message = getMessage(argv);  </div><div class="line">        channel.basicPublish(EXCHANGE_NAME, severity, <span class="keyword">null</span>,    message.getBytes());  </div><div class="line">        System.out.println(<span class="string">" [x] Sent '"</span> + severity + <span class="string">"':'"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        channel.close();  </div><div class="line">        connection.close();  </div><div class="line">    }  </div><div class="line">    <span class="comment">//..  </span></div><div class="line">}  </div><div class="line">   </div><div class="line">   </div><div class="line">   </div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ReceiveLogsDirect</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"direct_logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> java.io.IOException,  </div><div class="line">                  java.lang.InterruptedException {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"direct"</span>);  </div><div class="line">        String queueName = channel.queueDeclare().getQueue();  </div><div class="line">        <span class="keyword">if</span> (argv.length &lt; <span class="number">1</span>){  </div><div class="line">            System.err.println(<span class="string">"Usage: ReceiveLogsDirect [info] [warning] [error]"</span>);  </div><div class="line">            System.exit(<span class="number">1</span>);  </div><div class="line">        }  </div><div class="line">        <span class="keyword">for</span>(String severity : argv){  </div><div class="line">            channel.queueBind(queueName, EXCHANGE_NAME, severity);  </div><div class="line">        }  </div><div class="line">        System.out.println(<span class="string">" [*] Waiting for messages. To exit press CTRL+C"</span>);  </div><div class="line">        QueueingConsumer consumer = <span class="keyword">new</span> QueueingConsumer(channel);  </div><div class="line">        channel.basicConsume(queueName, <span class="keyword">true</span>, consumer);  </div><div class="line">        <span class="keyword">while</span> (<span class="keyword">true</span>) {  </div><div class="line">            QueueingConsumer.Delivery delivery = consumer.nextDelivery();  </div><div class="line">            String message = <span class="keyword">new</span> String(delivery.getBody());  </div><div class="line">            String routingKey = delivery.getEnvelope().getRoutingKey();  </div><div class="line">            System.out.println(<span class="string">" [x] Received '"</span> + routingKey + <span class="string">"':'"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        }  </div><div class="line">    }  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h2 id="Part5_Topic">Part5 Topic</h2>
+<ol>
+<li>Topic exchange<br>比direct exchange方式好的地方是有通配符的概念在里面<br><strong>* (star)</strong> can substitute for exactly one word.<br><strong># (hash)</strong> can substitute for zero or more words.<br>Delimited by dots<br>Routing_key up to the limit of <strong>255</strong> bytes</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">EmitLogTopic</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"topic_logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> Exception {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"topic"</span>);  </div><div class="line">        String routingKey = getRouting(argv);  </div><div class="line">        String message = getMessage(argv);  </div><div class="line">        channel.basicPublish(EXCHANGE_NAME, routingKey, <span class="keyword">null</span>, message.getBytes());  </div><div class="line">        System.out.println(<span class="string">" [x] Sent '"</span> + routingKey + <span class="string">"':'"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        connection.close();  </div><div class="line">    }  </div><div class="line">    <span class="comment">//...  </span></div><div class="line">}  </div><div class="line">   </div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ReceiveLogsTopic</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"topic_logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> Exception {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"topic"</span>);  </div><div class="line">        String queueName = channel.queueDeclare().getQueue();  </div><div class="line">        <span class="keyword">if</span> (argv.length &lt; <span class="number">1</span>){  </div><div class="line">            System.err.println(<span class="string">"Usage: ReceiveLogsTopic [binding_key]..."</span>);  </div><div class="line">            System.exit(<span class="number">1</span>);  </div><div class="line">        }  </div><div class="line">       <span class="keyword">for</span>(String bindingKey : argv){  </div><div class="line">            channel.queueBind(queueName, EXCHANGE_NAME, bindingKey);  </div><div class="line">        }  </div><div class="line">        System.out.println(<span class="string">" [*] Waiting for messages. To exit press CTRL+C"</span>);  </div><div class="line">        QueueingConsumer consumer = <span class="keyword">new</span> QueueingConsumer(channel);  </div><div class="line">        channel.basicConsume(queueName, <span class="keyword">true</span>, consumer);  </div><div class="line">        <span class="keyword">while</span> (<span class="keyword">true</span>) {  </div><div class="line">            QueueingConsumer.Delivery delivery = consumer.nextDelivery();  </div><div class="line">            String message = <span class="keyword">new</span> String(delivery.getBody());  </div><div class="line">            String routingKey = delivery.getEnvelope().getRoutingKey();  </div><div class="line">            System.out.println(<span class="string">" [x] Received '"</span> + routingKey + <span class="string">"':'"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        }  </div><div class="line">    }  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h2 id="集群方案">集群方案</h2>
+<p>一般采用镜像队列，内存节点作为主服务器+磁盘节点做冗余。</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="写在前面">写在前面</h2>
+<p>前一阵子写SEDA异步框架的时候，使用了rabbitmq作为分布式消息队列（见前文），把一些学习官网教程的笔记简单备忘。示例都来自官网</p>
+<h2 id="Part_2_Work_Queues">Part 2 Work Q]]>
+    </summary>
+    
+      <category term="rabbitmq" scheme="https://github.com/surlymo/tags/rabbitmq/"/>
+    
+      <category term="备忘录" scheme="https://github.com/surlymo/categories/%E5%A4%87%E5%BF%98%E5%BD%95/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【备忘】代码格式化与静态检查]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/%E4%BB%A3%E7%A0%81%E6%A0%BC%E5%BC%8F%E5%8C%96%E4%B8%8E%E9%9D%99%E6%80%81%E6%A3%80%E6%9F%A5/"/>
+    <id>https://github.com/surlymo/2014/09/23/代码格式化与静态检查/</id>
+    <published>2014-09-23T09:11:58.000Z</published>
+    <updated>2015-06-16T09:24:42.773Z</updated>
+    <content type="html"><![CDATA[<h2 id="写在前面">写在前面</h2>
+<p>在敏捷开发中，随着文档地位不断被削弱，此时代码的可读性和质量往往成为直接决定项目是否健壮可维护的关键。这就要求我们的代码具有良好的风格（包括注释、命名等）、代码格式标准、程序没有非法调用和低级bug，以及用以对功能进行解释的单元测试能够尽可能多地覆盖核心功能。如果每次我们都手动去依次检查这些点是否达标，那持续集成将变得无比缓慢。更遑论持续交付了。</p>
+<p>所以在持续集成（CI）的过程中，每次local build的时候，我们可以利用一些maven插件对代码进行以上需求的自动化校准或校验。宥于时间，所以此处不能对每个插件的使用进行详细说明。以后有时间会进行详细整理。以下我们依次进行简单介绍。</p>
+<h2 id="代码格式化">代码格式化</h2>
+<p><strong>eclipse插件</strong><br>打开eclipse，window —&gt; Preferences —&gt; Java —&gt; Code Style —&gt; Formatter</p>
+<p><img src="/img/formatter.jpg" alt=""></p>
+<p><strong>maven插件</strong><br>同时，在maven中导入插件可以保证在每次mvn install的时候都默认进行代码的自动格式化。其中，如果不需要特定的配置文件指定，则无需引入<configuration>标签。</configuration></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">plugin</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>com.googlecode.maven-java-formatter-plugin<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>maven-java-formatter-plugin<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">version</span>&gt;</span>0.4<span class="tag">&lt;/<span class="title">version</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">configuration</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">configFile</span>&gt;</span>formatter-profile.xml<span class="tag">&lt;/<span class="title">configFile</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">encoding</span>&gt;</span>gbk<span class="tag">&lt;/<span class="title">encoding</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">configuration</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">executions</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">execution</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">goals</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">goal</span>&gt;</span>format<span class="tag">&lt;/<span class="title">goal</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;/<span class="title">goals</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">execution</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">executions</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">plugin</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<h2 id="代码风格检查">代码风格检查</h2>
+<p><strong>eclipse插件</strong><br>checkstyle插件的安装在网上随处可见。见此处建议采用手动安装，自动安装的地址在我使用过程中无法连接。此处摘取部分内容说明如下：<br>1）下载地址：<a href="http://sourceforge.net/projects/eclipse-cs/files/OldFiles/" target="_blank" rel="external">http://sourceforge.net/projects/eclipse-cs/files/OldFiles/</a><br>2）将下载包解压后的features和plugins目录中的文件复制到%ECLIPSE_HOME%下的对应目录中<br>3）重启eclipse<br>默认将采用sun的风格标准进行代码风格检查，如果不采用默认的checkstyle配置，要导入配置文件只需：preferences—&gt; checkstyle —&gt; New —&gt; External Configuration File. 并导入对应xml配置即可。</p>
+<p><a href="http://orange5458.iteye.com/blog/1547851" target="_blank" rel="external">checkstyle插件安装详细请点击</a><br><a href="http://blog.csdn.net/kaiqi239/article/details/5734785" target="_blank" rel="external">checkstyle配置文件说明请点击</a></p>
+<p><img src="/img/checkstyle.jpg" alt=""></p>
+<p>常用方法：<br>1）手动检查：<br>待检查目标点击右键 —&gt; checkstyle —&gt; check code with checkstyle<br>2）清除检查结果：<br>待检查目标点击右键 —&gt; checkstyle —&gt; clear checkstyle voilations<br>3）查看风格报警信息：<br>window —&gt; show view —&gt; checkstyle violations</p>
+<p><strong>maven插件</strong><br>除此之外，我们可以采用checkstyle的maven插件来实现与持续集成的绑定，<a href="http://blog.csdn.net/kongxx/article/details/7750015" target="_blank" rel="external">详情请点击</a></p>
+<h2 id="代码漏洞检查">代码漏洞检查</h2>
+<p><strong>eclipse插件</strong><br>采用findbugs来进行代码检查。网上很多人都对eclipse中如何安装和使用findbugs进行了较为详细的说明。此处不再赘述。<br><a href="http://tidus2005.iteye.com/blog/462212" target="_blank" rel="external">详情请点击</a></p>
+<p><strong>maven插件</strong><br>如果要引入其maven插件，仅需在maven的配置文件中加入如下代码：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">plugin</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>org.codehaus.mojo<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>findbugs-maven-plugin<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">version</span>&gt;</span>2.3.1<span class="tag">&lt;/<span class="title">version</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">configuration</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">threshold</span>&gt;</span>High<span class="tag">&lt;/<span class="title">threshold</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">findbugsXmlOutput</span>&gt;</span>true<span class="tag">&lt;/<span class="title">findbugsXmlOutput</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">findbugsXmlOutputDirectory</span>&gt;</span>.<span class="tag">&lt;/<span class="title">findbugsXmlOutputDirectory</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">findbugsHtmlOutput</span>&gt;</span>true<span class="tag">&lt;/<span class="title">findbugsHtmlOutput</span>&gt;</span>   <span class="tag">&lt;<span class="title">findbugsHtmlOutputDirectory</span>&gt;</span>target/site<span class="tag">&lt;/<span class="title">findbugsHtmlOutputDirectory</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">configuration</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">executions</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">execution</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">id</span>&gt;</span>findbugs<span class="tag">&lt;/<span class="title">id</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">phase</span>&gt;</span>verify<span class="tag">&lt;/<span class="title">phase</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">goals</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">goal</span>&gt;</span>findbugs<span class="tag">&lt;/<span class="title">goal</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;/<span class="title">goals</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">execution</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">executions</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">plugin</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>然后执行</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">mvn org.codehaus.mojo:findbugs-maven-plugin:<span class="number">2.0</span>.<span class="number">1</span>:findbugs</div></pre></td></tr></table></figure>
+
+<p>即可获得对应的报告数据。这样hudson或者jenkins的CI平台，就可以依据报告进行代码漏洞的分析。</p>
+<h2 id="单测覆盖率检查">单测覆盖率检查</h2>
+<p><strong>eclipse插件</strong><br>采用cobertura进行UT覆盖率检查。eclipse的cobertura插件名为ecobertura。<br><a href="http://ecobertura.johoop.de/" target="_blank" rel="external">详细请点击</a></p>
+<p><strong>maven插件</strong><br>在maven的配置文件中加入如下代码：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">plugin</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>org.codehaus.mojo<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>cobertura-maven-plugin<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">version</span>&gt;</span>2.5.1<span class="tag">&lt;/<span class="title">version</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">configuration</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">formats</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">format</span>&gt;</span>xml<span class="tag">&lt;/<span class="title">format</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">formats</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">aggregate</span>&gt;</span>true<span class="tag">&lt;/<span class="title">aggregate</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">instrumentation</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">includes</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">include</span>&gt;</span>${cobertura.include}<span class="tag">&lt;/<span class="title">include</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;/<span class="title">includes</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">instrumentation</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">configuration</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">executions</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">execution</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">goals</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">goal</span>&gt;</span>clean<span class="tag">&lt;/<span class="title">goal</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">goal</span>&gt;</span>cobertura<span class="tag">&lt;/<span class="title">goal</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;/<span class="title">goals</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">execution</span>&gt;</span>  </div><div class="line">     <span class="tag">&lt;/<span class="title">executions</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">plugin</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>然后执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">mvn clean cobertua:cobertura</div></pre></td></tr></table></figure>
+
+<p>即可生成报告。依此结合hudson/jenkins平台进行相应的持续集成的数据分析的质量管控。</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="写在前面">写在前面</h2>
+<p>在敏捷开发中，随着文档地位不断被削弱，此时代码的可读性和质量往往成为直接决定项目是否健壮可维护的关键。这就要求我们的代码具有良好的风格（包括注释、命名等）、代码格式标准、程序没有非法调用和低级bug，以及用以对功能进行解释的单]]>
+    </summary>
+    
+      <category term="formatter" scheme="https://github.com/surlymo/tags/formatter/"/>
+    
+      <category term="checkstyle" scheme="https://github.com/surlymo/tags/checkstyle/"/>
+    
+      <category term="cobertura" scheme="https://github.com/surlymo/tags/cobertura/"/>
+    
+      <category term="findbugs" scheme="https://github.com/surlymo/tags/findbugs/"/>
+    
+      <category term="备忘录" scheme="https://github.com/surlymo/categories/%E5%A4%87%E5%BF%98%E5%BD%95/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【备忘】linux中安装rabbitmq出现的错误记录]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/linux%E4%B8%AD%E5%AE%89%E8%A3%85rabbitmq%E5%87%BA%E7%8E%B0%E7%9A%84%E9%94%99%E8%AF%AF%E8%AE%B0%E5%BD%95/"/>
+    <id>https://github.com/surlymo/2014/09/23/linux中安装rabbitmq出现的错误记录/</id>
+    <published>2014-09-23T09:02:01.000Z</published>
+    <updated>2015-06-16T09:24:42.753Z</updated>
+    <content type="html"><![CDATA[<p>安装了erl之后，在将rabbitmq搭建到linux服务器的时候，根据在windows搭建的经验，本以为可以几下搞定，结果启动不断地报错误（plugins启用了web管理界面），以下为报错时候的错误case。其错误log为erlang的crash.dump文件，但对于我这种没有erlang语言基础的人来说阅读起来比较困难。之后开始将怀疑点集中在内核、erlang以及rabbitmq的版本问题上。在更换内核到新版本<strong>AS6</strong>的版本之后。该问题就解决了。</p>
+<p><img src="/img/rabbitmq-error.jpg" alt=""></p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<p>安装了erl之后，在将rabbitmq搭建到linux服务器的时候，根据在windows搭建的经验，本以为可以几下搞定，结果启动不断地报错误（plugins启用了web管理界面），以下为报错时候的错误case。其错误log为erlang的crash.dump文件，但对于我这]]>
+    </summary>
+    
+      <category term="rabbitmq" scheme="https://github.com/surlymo/tags/rabbitmq/"/>
+    
+      <category term="备忘录" scheme="https://github.com/surlymo/categories/%E5%A4%87%E5%BF%98%E5%BD%95/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【备忘】Quartz框架使用时异常原因记录]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/Quartz%E6%A1%86%E6%9E%B6%E4%BD%BF%E7%94%A8%E6%97%B6%E5%BC%82%E5%B8%B8%E5%8E%9F%E5%9B%A0%E8%AE%B0%E5%BD%95/"/>
+    <id>https://github.com/surlymo/2014/09/23/Quartz框架使用时异常原因记录/</id>
+    <published>2014-09-23T08:10:03.000Z</published>
+    <updated>2015-06-16T09:24:42.759Z</updated>
+    <content type="html"><![CDATA[<p>在公司做的项目所搭建框架中需要使用定时器功能，但是Quartz的常规用法中需要加入很多配置，而采用配置方式则无法很好与所要搭建的框架耦合。于是采用了非配置的写法。</p>
+<p>开发过程中有几个地方是需要注意的：</p>
+<h2 id="Job不能为内部类，否则无法初始化">Job不能为内部类，否则无法初始化</h2>
+<p>一开始为了对外隐藏内部实现，想将定时相关的处理都放到内部类中进行处理。结果发现启动的时候显示无法初始化。其也容易理解。Job在初始化new的时候，如果为内部类显然Quartz是无法找到他的。</p>
+<h2 id="保证spring升级到新版本。">保证spring升级到新版本。</h2>
+<p>如果使用老版本比如3.0.5，则会出现如下异常： </p>
+<blockquote>
+<p>   java.lang.IncompatibleClassChangeError: Found interface org.quartz.JobExecutionContext, but class was expected  </p>
+</blockquote>
+<p>该case在google code已经spring官方论坛上都有人报过，在spring3.1.1之后的版本即已兼容。<a href="http://code.google.com/p/wisematches/issues/detail?id=156" target="_blank" rel="external">详情点击</a></p>
+<h2 id="其定时语法和crontab有些许差别。">其定时语法和crontab有些许差别。</h2>
+<p>比如在写类Crontab表达式的时候，各个字段的意义即不一样。以下是其CronTrigger表达式时候，各个字段的定义以及使用方法如下：   </p>
+<table>
+<thead>
+<tr>
+<th><em>Field Name</em></th>
+<th><em>Mandatory</em></th>
+<th><em>Allowed Values</em></th>
+<th><em>Allowed Special Characters</em></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seconds</td>
+<td>YES</td>
+<td>0-59</td>
+<td>, - * /</td>
+</tr>
+<tr>
+<td>Minutes</td>
+<td>YES</td>
+<td>0-59</td>
+<td>, - * /</td>
+</tr>
+<tr>
+<td>Hours</td>
+<td>YES</td>
+<td>0-23</td>
+<td>, - * /</td>
+</tr>
+<tr>
+<td>Day of month</td>
+<td>YES</td>
+<td>1-31</td>
+<td>, - * ? / L W</td>
+</tr>
+<tr>
+<td>Month</td>
+<td>YES</td>
+<td>1-12 or JAN-DEC</td>
+<td>, - * /</td>
+</tr>
+<tr>
+<td>Day of week</td>
+<td>YES</td>
+<td>1-7 or SUN-SAT</td>
+<td>, - * ? / L #</td>
+</tr>
+<tr>
+<td>Year</td>
+<td>NO</td>
+<td>empty, 1970-2099</td>
+<td>, - * /</td>
+</tr>
+</tbody>
+</table>
+<p>详细语法请参阅<a href="http://www.quartz-scheduler.org/documentation/quartz-2.2.x/tutorials/crontrigger" target="_blank" rel="external">官网CronTrigger章节</a></p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<p>在公司做的项目所搭建框架中需要使用定时器功能，但是Quartz的常规用法中需要加入很多配置，而采用配置方式则无法很好与所要搭建的框架耦合。于是采用了非配置的写法。</p>
+<p>开发过程中有几个地方是需要注意的：</p>
+<h2 id="Job不能为内部类，否则无法初始化"]]>
+    </summary>
+    
+      <category term="Quartz" scheme="https://github.com/surlymo/tags/Quartz/"/>
+    
+      <category term="备忘录" scheme="https://github.com/surlymo/categories/%E5%A4%87%E5%BF%98%E5%BD%95/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[一致性哈希原理与实现]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C%E5%8E%9F%E7%90%86%E4%B8%8E%E5%AE%9E%E7%8E%B0/"/>
+    <id>https://github.com/surlymo/2014/09/23/一致性哈希原理与实现/</id>
+    <published>2014-09-23T05:20:57.000Z</published>
+    <updated>2015-06-16T09:24:42.766Z</updated>
+    <content type="html"><![CDATA[<h2 id="写在前面">写在前面</h2>
+<p>一致性哈希算法在实现集群软负载均衡时候可以使用。实现上感觉有点类似zookeeper关于共享锁和主从选择的算法。都是通过有序且唯一的节点来实现的。而虚拟化一致性哈希则采用了web架构中经常使用的“虚拟化”思路来实现。总的来说，一致性哈希非常迎合大型网站技术架构中“去状态同构 + 虚拟化”的思想。</p>
+<h2 id="一致性哈希">一致性哈希</h2>
+<p>如果一致性哈希中机器节点和环上的节点是1对1的关系，则同构集群的伸缩性将收到很大影响，即以后加机器的时候，所影响的环区间都很有限。如下图所示：</p>
+<p><img src="/img/hash.jpg" alt=""></p>
+<p>新增机器对应的hash节点为图上黄点，可以看出新增机器时，其影响的范围只有hash环中的黄色区域。这显然无法达到我们谈论伸缩性中的通过增加机器来达到性能线性增长的目的。那怎么办呢？</p>
+<h2 id="虚拟化一致性哈希">虚拟化一致性哈希</h2>
+<p>答案就是，将哈希的过程虚拟化。主要有两种办法可以实现对该算法的虚拟化：</p>
+<ol>
+<li>一个机器节点映射出一组哈希值。</li>
+</ol>
+<p>如下图所示，这样每一个机器节点映射出来的一组哈希值，可以比较大程度的将机器应用到更多的请求中去。同时由于哈希出来的虚拟节点比较多，也比较大程度避免了某个机器宕机之后，压力过多压到相邻的机器节点上，从而导致雪崩的情况出现。</p>
+<p><img src="/img/hash2.jpg" alt=""></p>
+<ol>
+<li>一个hash节点对应一个机器槽。</li>
+</ol>
+<p>如下图所示，每一个hash节点都映射了一个机器槽，这样新增机器的时候，只需要将机器安插如对应的槽位中即可。如此也可实现集群的伸缩性。也可同样避免上述雪崩情况的出现。</p>
+<p><img src="/img/hash3.jpg" alt=""></p>
+<p>前者是让hash节点与机器节点呈n对1的关系，而后者则相反。两者都能最大程度避免上述问题出现。说到哈希，多少都有碰撞概率，我们可以选择采用murmurhash算法来取代传统的MD5，从而最大程度降低碰撞概率。</p>
+<h2 id="延伸材料">延伸材料</h2>
+<p>具体的原理以及实现的相关资料可以参考相关资料：<br><a href="http://blog.csdn.net/sparkliang/article/details/5279393" target="_blank" rel="external">一致性哈希原理</a><br><a href="http://www.blogjava.net/hello-yun/archive/2012/10/10/389289.html" target="_blank" rel="external">一致性哈希的JAVA实现（hash采用了murmurhash算法）</a></p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="写在前面">写在前面</h2>
+<p>一致性哈希算法在实现集群软负载均衡时候可以使用。实现上感觉有点类似zookeeper关于共享锁和主从选择的算法。都是通过有序且唯一的节点来实现的。而虚拟化一致性哈希则采用了web架构中经常使用的“虚拟化”思路来实现。总的来说，]]>
+    </summary>
+    
+      <category term="一致性哈希" scheme="https://github.com/surlymo/tags/%E4%B8%80%E8%87%B4%E6%80%A7%E5%93%88%E5%B8%8C/"/>
+    
+      <category term="分布式" scheme="https://github.com/surlymo/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【备忘】linux安装mysql客户端问题总结]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/linux%E5%AE%89%E8%A3%85mysql%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%97%AE%E9%A2%98%E6%80%BB%E7%BB%93/"/>
+    <id>https://github.com/surlymo/2014/09/23/linux安装mysql客户端问题总结/</id>
+    <published>2014-09-23T05:10:40.000Z</published>
+    <updated>2015-06-16T09:24:42.755Z</updated>
+    <content type="html"><![CDATA[<p>在linux上安装mysql，直接从测试机上scp过来的mysql目录，出了一些问题，备忘一下出现的问题和解决方案：</p>
+<ol>
+<li>发现找不到libmysqlclient.so.15以及libmysqlclient.so.15.0.0。</li>
+</ol>
+<p>解决方案：在你的.bash_profile文件中加入</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">export</span> LD_LIBRARY_PATH=<span class="string">"xxxx/mysql/lib/mysql"</span></div></pre></td></tr></table></figure>
+
+<ol>
+<li>发现/tmp/mysql.socket找不到 </li>
+</ol>
+<p>解决方案<br>(1)删除你mysql目录下的var文件夹<br>(2)调用/mysql/bin下面的mysql_install_db.sh<br>(3)调用/mysql/bin下面的mysqld_safe.sh<br>注：记得修改脚本里面的所有相关path到你当前的mysql的path下。 </p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<p>在linux上安装mysql，直接从测试机上scp过来的mysql目录，出了一些问题，备忘一下出现的问题和解决方案：</p>
+<ol>
+<li>发现找不到libmysqlclient.so.15以及libmysqlclient.so.15.0.0。</li>
+</ol>
+<]]>
+    </summary>
+    
+      <category term="mysql" scheme="https://github.com/surlymo/tags/mysql/"/>
+    
+      <category term="备忘录" scheme="https://github.com/surlymo/categories/%E5%A4%87%E5%BF%98%E5%BD%95/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[ThreadPoolExecutor和CyclicBarrier配合使用的隐患]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/ThreadPoolExecutor%E5%92%8CCyclicBarrier%E9%85%8D%E5%90%88%E4%BD%BF%E7%94%A8%E7%9A%84%E9%9A%90%E6%82%A3/"/>
+    <id>https://github.com/surlymo/2014/09/23/ThreadPoolExecutor和CyclicBarrier配合使用的隐患/</id>
+    <published>2014-09-23T02:42:36.000Z</published>
+    <updated>2015-06-16T09:24:42.765Z</updated>
+    <content type="html"><![CDATA[<h2 id="事情是这样的…">事情是这样的…</h2>
+<p>我使用了spring的ThreadPoolTaskExecutor来进行并发时候的异步处理。并且给任务Runnable加上了CyclicBarrier，以达到让所有线程处理完之后再进行主线程的下一步操作的目的。其中executor的配置如下： </p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"coreBlockExecutor"</span>  </span></div><div class="line">    <span class="attribute">class</span>=<span class="value">"org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor"</span>&gt;  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"corePoolSize"</span> <span class="attribute">value</span>=<span class="value">"5"</span> /&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"maxPoolSize"</span> <span class="attribute">value</span>=<span class="value">"2000"</span> /&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"queueCapacity"</span> <span class="attribute">value</span>=<span class="value">"1000"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>结果，问题就随之出现了：我new出来了1000个runnable，但无论如何也只能执行出5个runnable的结果（即corePoolSize），其他runnable就一直呆在BlockingQueue里面不动弹了。 </p>
+<h2 id="怎么发生的？">怎么发生的？</h2>
+<p>查看了ThreadPoolTaskExecutor，在后者中，有这样一个方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">execute</span>(Runnable command) {  </div><div class="line">    <span class="keyword">if</span> (command == <span class="keyword">null</span>)  </div><div class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> NullPointerException();  </div><div class="line">    <span class="keyword">if</span> (poolSize &gt;= corePoolSize || !addIfUnderCorePoolSize(command)) {  </div><div class="line">        <span class="keyword">if</span> (runState == RUNNING && workQueue.offer(command)) {  </div><div class="line">            <span class="keyword">if</span> (runState != RUNNING || poolSize == <span class="number">0</span>)  </div><div class="line">                ensureQueuedTaskHandled(command);  </div><div class="line">        }  </div><div class="line">        <span class="keyword">else</span> <span class="keyword">if</span> (!addIfUnderMaximumPoolSize(command))  </div><div class="line">            reject(command); <span class="comment">// is shutdown or saturated  </span></div><div class="line">    }  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<p>可以看到，在当前线程池的线程数大于等于corePoolSize时候，会判断 </p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">if</span> (runState == RUNNING && workQueue.offer(command))</div></pre></td></tr></table></figure>
+
+<p>也就是，当前线程池是处于运行状态并且队列是否还能插入runnable。如果当队列满的时候，就会拒绝新的请求进入</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">else</span> <span class="keyword">if</span> (!addIfUnderMaximumPoolSize(command))  </div><div class="line">	reject(command); <span class="comment">// is shutdown or saturated</span></div></pre></td></tr></table></figure>
+
+<p>而如果当前线程数如果小于最大线程数，则会调用addThread方法，将runnbale实例化成一个内部类Worker，加入线程池中运行，具体地：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">private</span> Thread <span class="title">addThread</span>(Runnable firstTask) {  </div><div class="line">    Worker w = <span class="keyword">new</span> Worker(firstTask);  </div><div class="line">    Thread t = threadFactory.newThread(w);  </div><div class="line">    <span class="keyword">if</span> (t != <span class="keyword">null</span>) {  </div><div class="line">        w.thread = t;  </div><div class="line">        workers.add(w);  </div><div class="line">        <span class="keyword">int</span> nt = ++poolSize;  </div><div class="line">        <span class="keyword">if</span> (nt &gt; largestPoolSize)  </div><div class="line">            largestPoolSize = nt;  </div><div class="line">    }  </div><div class="line">    <span class="keyword">return</span> t;  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<p>普通情况，即使填入executor的runnable数量不能填满queue，但在核心线程中运行的任务Worker结束之后，过了最大空闲时间（keepAliveTime）之后，即会释放线程，去从queue中获取等待中的任务。代码如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span>() {</div><div class="line">    <span class="keyword">try</span> {</div><div class="line">        Runnable task = firstTask;</div><div class="line">        firstTask = <span class="keyword">null</span>;</div><div class="line">        <span class="keyword">while</span> (task != <span class="keyword">null</span> || (task = getTask()) != <span class="keyword">null</span>) {</div><div class="line">            runTask(task);</div><div class="line">            task = <span class="keyword">null</span>;</div><div class="line">        }</div><div class="line">    } <span class="keyword">finally</span> {</div><div class="line">        workerDone(<span class="keyword">this</span>);</div><div class="line">    }</div><div class="line">}</div></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line">Runnable getTask() {  </div><div class="line">    <span class="keyword">for</span> (;;) {  </div><div class="line">        <span class="keyword">try</span> {  </div><div class="line">            <span class="keyword">int</span> state = runState;  </div><div class="line">            <span class="keyword">if</span> (state &gt; SHUTDOWN)  </div><div class="line">                <span class="keyword">return</span> <span class="keyword">null</span>;  </div><div class="line">            Runnable r;  </div><div class="line">            <span class="keyword">if</span> (state == SHUTDOWN)  <span class="comment">// Help drain queue  </span></div><div class="line">                r = workQueue.poll();  </div><div class="line">            <span class="keyword">else</span> <span class="keyword">if</span> (poolSize &gt; corePoolSize || allowCoreThreadTimeOut)  </div><div class="line">                r = workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS);  </div><div class="line">            <span class="keyword">else</span>  </div><div class="line">                r = workQueue.take();  </div><div class="line">            <span class="keyword">if</span> (r != <span class="keyword">null</span>)  </div><div class="line">                <span class="keyword">return</span> r;  </div><div class="line">            <span class="keyword">if</span> (workerCanExit()) {  </div><div class="line">                <span class="keyword">if</span> (runState &gt;= SHUTDOWN) <span class="comment">// Wake up others  </span></div><div class="line">                    interruptIdleWorkers();  </div><div class="line">                <span class="keyword">return</span> <span class="keyword">null</span>;  </div><div class="line">            }  </div><div class="line">            <span class="comment">// Else retry  </span></div><div class="line">        } <span class="keyword">catch</span> (InterruptedException ie) {  </div><div class="line">            <span class="comment">// On interruption, re-check runState  </span></div><div class="line">        }  </div><div class="line">    }  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<p>可以看到，Worker中的run方法中，通过轮询来获取当前任务是否被终止，如果状态大于SHUTDOWN（即为STOP或TEMERIAL时），不会去从队列中拿取数据。其他情况下，会从队列里面继续拿任务的。可以看到，只有Worker当前的任务已完成的时候，才能去队列里面拿其他任务。否则一般情况下，就只能keep on waiting了。</p>
+<p>分析到这，原因就显而易见了：使用了CyclicBarrier或者CountDownLatch进行栅栏式的改装之后，所有核心线程中的任务都会一直等待，不会空闲下来。这样核心线程就永远处于尴尬的被hold住的状态了。既不能结束当前的任务，也无法从队列获取新的任务，更无法中止线程了。 </p>
+<h2 id="怎么解决？">怎么解决？</h2>
+<p>提供以下几个建议供参考：<br>1、允许的情况下，barrier的await设置过期时间<br>2、仔细考虑queue长度和并发规模<br>3、尽量避免使用ThreadPoolExecutor以及使用到他的一些库比如ExecutorService。转而自己实现一个简单的线程池即可。<br>4、采用atomic计数器或者future等方式来替代Barrier或者CountDownLatch的方案。</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="事情是这样的…">事情是这样的…</h2>
+<p>我使用了spring的ThreadPoolTaskExecutor来进行并发时候的异步处理。并且给任务Runnable加上了CyclicBarrier，以达到让所有线程处理完之后再进行主线程的下一步操作的目的。其中]]>
+    </summary>
+    
+      <category term="ThreadPoolExecutor" scheme="https://github.com/surlymo/tags/ThreadPoolExecutor/"/>
+    
+      <category term="CyclicBarrier" scheme="https://github.com/surlymo/tags/CyclicBarrier/"/>
+    
+      <category term="Spring" scheme="https://github.com/surlymo/categories/Spring/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[spring-data-redis中的坑和误区]]></title>
+    <link href="https://github.com/surlymo/2014/09/23/spring-data-redis%E4%B8%AD%E7%9A%84%E5%9D%91%E5%92%8C%E8%AF%AF%E5%8C%BA/"/>
+    <id>https://github.com/surlymo/2014/09/23/spring-data-redis中的坑和误区/</id>
+    <published>2014-09-23T02:26:40.000Z</published>
+    <updated>2015-06-16T09:24:42.763Z</updated>
+    <content type="html"><![CDATA[<h2 id="spring的redis模板中有问题的地方">spring的redis模板中有问题的地方</h2>
+<p>在项目开发过程中，想要进行redis的并发控制，这时候，想当然地使用了spring-data-redis库中template里面提供的multi()和exec()方法，如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">redis.multi() </div><div class="line"><span class="comment">// do something here</span></div><div class="line">redis.exec()</div></pre></td></tr></table></figure>
+
+<p>使用了之后，就出现了如下异常：</p>
+<blockquote>
+<p>org.springframework.dao.InvalidDataAccessApiUsageException: ERR EXEC without MULTI; nested exception is redis.clients.jedis.exceptions.JedisDataException: ERR EXEC without MULTI</p>
+</blockquote>
+<p>在google搜了一下，才知道，原来是目前该库的redistemplate的multi和exec方法，都是新产生连接，而非使用本来的连接，这个异常，也是由于这个原因所以才导致的。（因为新连接中，直接执行退出同步，系统肯定会去找是从哪儿开始同步的，这一找，发现没有开始同步的命令，就会抛出异常了）</p>
+<p>这个时候，只能自己调用底层的RedisCallBack和Jedis去实现底层redis语句了。类似这样： </p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line">Jedis jedis = <span class="keyword">new</span> Jedis(<span class="string">"localhost"</span>,<span class="number">6379</span>);  </div><div class="line"><span class="keyword">new</span> RedisCallback&lt;Object&gt;() {  </div><div class="line">    <span class="keyword">public</span> Object <span class="title">doInRedis</span>(RedisConnection connection) <span class="keyword">throws</span> DataAccessException {  </div><div class="line">        connection.multi();  </div><div class="line">        <span class="keyword">return</span> <span class="keyword">null</span>;  </div><div class="line">    }  </div><div class="line">}.doInRedis(<span class="keyword">new</span> JedisConnection(jedis));</div></pre></td></tr></table></figure>
+
+<p>这时候肯定会有个疑问，既然这个template每次都会生成新连接，那这个multi和exec命令还有什么用？官方是这么回答的：</p>
+<blockquote>
+<p>The methods are exposed in case the connection is shared across methods. Currently we don’t provide any out of the box support for connection binding but the RedisTemplate supports it - just like with the rest of the templates, one connection could be bound to the running thread and the RT will use it without creating new ones.</p>
+</blockquote>
+<p>大致意思是这些方法目前是没有用的。但实际上这个模板是能够支持的。可以看到RedisTemplate中有这么一个方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">&lt;T&gt; T execute(SessionCallback&lt;T&gt; session);</div></pre></td></tr></table></figure>
+
+<p>其参数类型是SessionCallBack而不是RedisCallback。我们平时在persist、或者Ofs的时候，模板默认调用的是参数类型为RedisCallback的函数：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">&lt;T&gt; T execute(RedisCallback&lt;T&gt; action);</div></pre></td></tr></table></figure>
+
+<p>我们看一下他的实现：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> &lt;T&gt; T <span class="title">execute</span>(RedisCallback&lt;T&gt; action, <span class="keyword">boolean</span> exposeConnection, <span class="keyword">boolean</span> pipeline) {</div><div class="line">	Assert.notNull(action, <span class="string">"Callback object must not be null"</span>);</div><div class="line"></div><div class="line">	RedisConnectionFactory factory = getConnectionFactory();</div><div class="line">	RedisConnection conn = RedisConnectionUtils.getConnection(factory);</div><div class="line"></div><div class="line">	<span class="keyword">boolean</span> existingConnection = TransactionSynchronizationManager.hasResource(factory);</div><div class="line">	preProcessConnection(conn, existingConnection);</div><div class="line"></div><div class="line">	<span class="keyword">boolean</span> pipelineStatus = conn.isPipelined();</div><div class="line">	<span class="keyword">if</span> (pipeline && !pipelineStatus) {</div><div class="line">		conn.openPipeline();</div><div class="line">	}</div><div class="line"></div><div class="line">	<span class="keyword">try</span> {</div><div class="line">		RedisConnection connToExpose = (exposeConnection ? conn : createRedisConnectionProxy(conn));</div><div class="line">		T result = action.doInRedis(connToExpose);</div><div class="line"></div><div class="line">		<span class="comment">// close pipeline</span></div><div class="line">		<span class="keyword">if</span> (pipeline && !pipelineStatus) {</div><div class="line">			conn.closePipeline();</div><div class="line">		}</div><div class="line"></div><div class="line">		<span class="comment">// TODO: any other connection processing?</span></div><div class="line">		<span class="keyword">return</span> postProcessResult(result, conn, existingConnection);</div><div class="line">	} <span class="keyword">finally</span> {</div><div class="line">		RedisConnectionUtils.releaseConnection(conn, factory);</div><div class="line">	}</div><div class="line">}</div></pre></td></tr></table></figure>
+
+<p>虽然是从工厂拿出来的，但是可以预见其与并无法将事务与该连接绑定。而我们再来看下参数类型为SessionCallback的execute方法源码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> &lt;T&gt; T <span class="title">execute</span>(SessionCallback&lt;T&gt; session) {</div><div class="line">	RedisConnectionFactory factory = getConnectionFactory();</div><div class="line">	<span class="comment">// bind connection</span></div><div class="line">	RedisConnectionUtils.bindConnection(factory);</div><div class="line">	<span class="keyword">try</span> {</div><div class="line">		<span class="keyword">return</span> session.execute(<span class="keyword">this</span>);</div><div class="line">	} <span class="keyword">finally</span> {</div><div class="line">		RedisConnectionUtils.unbindConnection(factory);</div><div class="line">	}</div><div class="line">}</div></pre></td></tr></table></figure>
+
+<p>可以看出来，其会对连接进行绑定和解绑。因而其从功能上应该是能够实现对事务的支持的。在CollectionUtils源码中，可以找到对该方法的运用，可以很明显看到。其通过如下代码实现了监听+事务管理。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">static</span> &lt;K&gt; <span class="keyword">void</span> rename(<span class="keyword">final</span> K key, <span class="keyword">final</span> K newKey, RedisOperations&lt;K, ?&gt; operations) {</div><div class="line">	operations.execute(<span class="keyword">new</span> SessionCallback&lt;Object&gt;() {</div><div class="line">		<span class="annotation">@SuppressWarnings</span>(<span class="string">"unchecked"</span>)</div><div class="line">		</div><div class="line">		<span class="keyword">public</span> Object <span class="title">execute</span>(RedisOperations operations) <span class="keyword">throws</span> DataAccessException {</div><div class="line">			do {</div><div class="line">				operations.watch(key);</div><div class="line"></div><div class="line">				<span class="keyword">if</span> (operations.hasKey(key)) {</div><div class="line">					operations.multi();</div><div class="line">					operations.rename(key, newKey);</div><div class="line">				}</div><div class="line">				<span class="keyword">else</span> {</div><div class="line">					operations.multi();</div><div class="line">				}</div><div class="line">			} <span class="keyword">while</span> (operations.exec() == <span class="keyword">null</span>);</div><div class="line">			<span class="keyword">return</span> <span class="keyword">null</span>;</div><div class="line">		}</div><div class="line">	});</div><div class="line">}</div></pre></td></tr></table></figure>
+
+<p>除此之外，iteye上还有人指出了这个模板的其他问题，可参考<a href="http://ldd600.iteye.com/blog/1115196" target="_blank" rel="external">点击我</a></p>
+<h2 id="使用redis事务时需要注意的地方">使用redis事务时需要注意的地方</h2>
+<p>说到了事务，不得不再提醒大家一个很容易忽视的问题。拿stackoverflow网站上的一个经典问答来做例子：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">redis.multi() </div><div class="line">current = redis.get(<span class="string">'powerlevel'</span>) </div><div class="line">redis.set(<span class="string">'powerlevel'</span>, current + <span class="number">1</span>) </div><div class="line">redis.exec()</div></pre></td></tr></table></figure>
+
+<p>其事务法是无法生效的，是因为redis在MULTI/EXEC代码块中，命令都会被delay，放入Queue中，而不会直接返回对应的值。即例子中的get将返回一个字符串“QUEUED”，从而set中无法实现自增。要完成这一切，请使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">redis.watch(<span class="string">'powerlevel'</span>) </div><div class="line">current = redis.get(<span class="string">'powerlevel'</span>) </div><div class="line">redis.multi() </div><div class="line">redis.set(<span class="string">'powerlevel'</span>, current + <span class="number">1</span>) </div><div class="line">redis.exec()</div></pre></td></tr></table></figure>
+
+<p>通过监听powerlevel key来实现数据的一致性。一旦该key被其他会话修改，这个事务即会失败。同时由于将get操作从MULTI块中提出，从而避免了无法获取数据的情况。</p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="spring的redis模板中有问题的地方">spring的redis模板中有问题的地方</h2>
+<p>在项目开发过程中，想要进行redis的并发控制，这时候，想当然地使用了spring-data-redis库中template里面提供的multi()和exec]]>
+    </summary>
+    
+      <category term="redis" scheme="https://github.com/surlymo/tags/redis/"/>
+    
+      <category term="Spring" scheme="https://github.com/surlymo/categories/Spring/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[【备忘】老消息中心开发中碰到的问题]]></title>
+    <link href="https://github.com/surlymo/2014/09/22/%E8%80%81%E6%B6%88%E6%81%AF%E4%B8%AD%E5%BF%83%E5%BC%80%E5%8F%91%E4%B8%AD%E7%9A%84%E5%A4%87%E5%BF%98%E5%BD%95/"/>
+    <id>https://github.com/surlymo/2014/09/22/老消息中心开发中的备忘录/</id>
+    <published>2014-09-22T04:30:38.000Z</published>
+    <updated>2015-06-16T09:24:42.831Z</updated>
+    <content type="html"><![CDATA[<h2 id="备忘一：启动Jetty报错">备忘一：启动Jetty报错</h2>
+<p>在整合好spring-mvc3、maven、以及mybatis之后，启动jetty7.0.pre5时，发现了如下错误：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">ClassNotFoundException: javax.interceptor.InvocationContext</div></pre></td></tr></table></figure>
+
+<p>从网上查了很久，花了很多时间，最后才找出来解决办法：更换jetty插件版本： </p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">plugin</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">groupId</span>&gt;</span>org.mortbay.jetty<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>maven-jetty-plugin<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">version</span>&gt;</span>6.1.26<span class="tag">&lt;/<span class="title">version</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">configuration</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">webApp</span>&gt;</span>target/iris-0.0.1-SNAPSHOT.war<span class="tag">&lt;/<span class="title">webApp</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">connectors</span>&gt;</span>  </div><div class="line">			<span class="tag">&lt;<span class="title">connector</span>  </span></div><div class="line">				<span class="attribute">implementation</span>=<span class="value">"org.mortbay.jetty.nio.SelectChannelConnector"</span>&gt;  </div><div class="line">				<span class="tag">&lt;<span class="title">port</span>&gt;</span>8087<span class="tag">&lt;/<span class="title">port</span>&gt;</span>  </div><div class="line">			<span class="tag">&lt;/<span class="title">connector</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;/<span class="title">connectors</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">stopKey</span>&gt;</span>exit<span class="tag">&lt;/<span class="title">stopKey</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">stopPort</span>&gt;</span>8081<span class="tag">&lt;/<span class="title">stopPort</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">scanIntervalSeconds</span>&gt;</span>2<span class="tag">&lt;/<span class="title">scanIntervalSeconds</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;/<span class="title">configuration</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">plugin</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p><a href="http://jira.codehaus.org/browse/JETTY-780?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel" target="_blank" rel="external">更多相关参考材料请点击我</a></p>
+<h2 id="备忘二：maven编译时报错提示找不到sun的某个包">备忘二：maven编译时报错提示找不到sun的某个包</h2>
+<p>报错提示找不到com.sun.xml.internal.messaging.saaj.util包。我们应该尽量避免使用sun的包。前人早已经踩过这个坑。原因也说得很明白，好端端的为什么要使用sun的internal类。采用javax里的MimeUtility类即可：</p>
+<blockquote>
+<p>Sun’s <em>java compiler</em> detects when a special<br>“internal” class is being accessed, and refuses to import the class.<br>Eclipse uses a different compiler which presumably does not have this check. </p>
+<p>Maven just uses the javac compiler available in the system execution<br>path. Therefore the problem is nothing to do with Maven at all. It’s the<br>compiler that maven is invoking which is refusing to compile the source.<br>I can’t see any public flags in the javac commandline to disable this<br>“blocking” of internal access, so unless you want to avoid using Sun’s<br>javac compiler you’ll just have to avoid using this internal class.</p>
+</blockquote>
+<p><a href="http://maven.40175.n5.nabble.com/Why-can-t-Maven-find-com-sun-xml-internal-messaging-saaj-util-ByteOutputStream-class-td107361.html" target="_blank" rel="external">更多相关参考材料请点击我</a></p>
+<h2 id="备忘三：spring版本与配置不兼容">备忘三：spring版本与配置不兼容</h2>
+<p>发现问题如下：</p>
+<blockquote>
+<p>Document root element “beans”,must match DOCTYPE root “null”</p>
+</blockquote>
+<p>原因即spirng 1.x采用的是DOCTYPE，而spring 2.x采用的是Schema，所以如果</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="doctype">&lt;!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd"&gt;</span></div></pre></td></tr></table></figure>
+
+<p>这样来声明时，即为spring1.x的版本。如果声明方式为：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">beans</span></span></div><div class="line">xmlns="http://<span class="attribute">www.springframework.org</span>/<span class="attribute">schema</span>/<span class="attribute">beans</span>"</div><div class="line"><span class="attribute">xmlns:xsi</span>=<span class="value">"http://www.w3.org/2001/XMLSchema-instance"</span></div><div class="line"><span class="attribute">xsi:schemaLocation</span>=<span class="value">"http://www.springframework.org/schema/beans   http://www.springframework.org/schema/beans/spring-beans-2.0.xsd"</span>&gt;</div></pre></td></tr></table></figure>
+
+<p>即为spring2.x的版本。如果出现这个错误，则check下你的spring是否变成了1.x。</p>
+<h2 id="备忘四：jetty启动异常">备忘四：jetty启动异常</h2>
+<p>启动jetty后，log中不断交替出现</p>
+<blockquote>
+<p>Connector vm://localhost Started/Stopped</p>
+</blockquote>
+<p>这是由activemq而引发的问题。问题的原因是在默认情况下，activemq只有当topic/queue有数据时候才会保持它在内存中的存在。所以当队列或者主题中没有数据时，activemq将不断进行启动和停止的操作。要解决这一现象，必须在spring配置文件中的activemq的listenercontainer声明时，加上<property name="cacheLevelName" value="CACHE_CONNECTION">这句。<br>加上之后，重新启动，everything done。 </property></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"queueListenerContainer"</span>  </span></div><div class="line">	<span class="attribute">class</span>=<span class="value">"org.springframework.jms.listener.DefaultMessageListenerContainer"</span>&gt;  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"cacheLevelName"</span> <span class="attribute">value</span>=<span class="value">"CACHE_CONNECTION"</span>/&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"connectionFactory"</span> <span class="attribute">ref</span>=<span class="value">"jmsConnectionFactory"</span> /&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"destination"</span> <span class="attribute">ref</span>=<span class="value">"QUEUE"</span> /&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"messageListener"</span> <span class="attribute">ref</span>=<span class="value">"queueListener"</span> /&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"transactionManager"</span> <span class="attribute">ref</span>=<span class="value">"jmsTransactionManager"</span> /&gt;</span>  </div><div class="line">	<span class="comment">&lt;!-- 使用外部事务管理器时设置为true，默认false --&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"sessionTransacted"</span> <span class="attribute">value</span>=<span class="value">"true"</span> /&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"concurrency"</span> <span class="attribute">value</span>=<span class="value">"1-100"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p><a href="http://forum.spring.io/forum/spring-projects/integration/jms/78914-activemq-infinitive-loop-connector-start-stop" target="_blank" rel="external">更多相关参考材料请点击我</a></p>
+]]></content>
+    <summary type="html">
+    <![CDATA[<h2 id="备忘一：启动Jetty报错">备忘一：启动Jetty报错</h2>
+<p>在整合好spring-mvc3、maven、以及mybatis之后，启动jetty7.0.pre5时，发现了如下错误：</p>
+<figure class="highlight java">]]>
+    </summary>
+    
+      <category term="sun" scheme="https://github.com/surlymo/tags/sun/"/>
+    
+      <category term="Jetty" scheme="https://github.com/surlymo/tags/Jetty/"/>
+    
+      <category term="备忘录" scheme="https://github.com/surlymo/categories/%E5%A4%87%E5%BF%98%E5%BD%95/"/>
+    
+  </entry>
+  
+</feed>

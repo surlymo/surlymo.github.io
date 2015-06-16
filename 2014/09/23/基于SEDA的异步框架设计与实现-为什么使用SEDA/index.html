@@ -1,0 +1,487 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>【基于SEDA的异步框架设计与实现】为什么使用SEDA | 飞小狐的博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Surlymo">
+    
+    <meta name="description" content="目前，面对并发环境，主流互联网服务器编程模型有两种：多线程模型以及事件驱动模型。但是这两个模型都不足以解决这个问题。我们来首先看一下这两种编程模型。
+多线程并发模型
+多线程并发模型是目前最普遍的服务器编程模型，该模型的架构如下图所示：
+
+该模型针对每一个请求，会为其创建并分配一个线程。该线程负责这个">
+    
+    
+    
+    
+    <link rel="alternative" href="/atom.xml" title="飞小狐的博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="飞小狐的博客" title="飞小狐的博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="飞小狐的博客">飞小狐的博客</a></h1>
+				<h2 class="blog-motto">Action speak louder than words</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:github.com/surlymo">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2014/09/23/基于SEDA的异步框架设计与实现-为什么使用SEDA/" title="【基于SEDA的异步框架设计与实现】为什么使用SEDA" itemprop="url">【基于SEDA的异步框架设计与实现】为什么使用SEDA</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="https://github.com/surlymo/about" title="Surlymo" target="_blank" itemprop="author">Surlymo</a>
+		
+  <p class="article-time">
+    <time datetime="2014-09-23T12:49:35.000Z" itemprop="datePublished"> 发表于 9月 23 2014</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#多线程并发模型"><span class="toc-number">1.</span> <span class="toc-text">多线程并发模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#事件驱动模型"><span class="toc-number">2.</span> <span class="toc-text">事件驱动模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#阶段性事件驱动（SEDA）模型"><span class="toc-number">3.</span> <span class="toc-text">阶段性事件驱动（SEDA）模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#参考资料："><span class="toc-number">4.</span> <span class="toc-text">参考资料：</span></a></li></ol>
+		
+		</div>
+		
+		<p>目前，面对并发环境，主流互联网服务器编程模型有两种：多线程模型以及事件驱动模型。但是这两个模型都不足以解决这个问题。我们来首先看一下这两种编程模型。</p>
+<h2 id="多线程并发模型">多线程并发模型</h2>
+<p>多线程并发模型是目前最普遍的服务器编程模型，该模型的架构如下图所示：</p>
+<p><img src="/img/seda1.jpg" alt=""></p>
+<p>该模型针对每一个请求，会为其创建并分配一个线程。该线程负责这个请求的处理。该模型的优点：执行粒度是整个完整的处理流程。处理逻辑清晰，容易开发。但与此同时缺点也很明显：如果处理过程中某一步骤出现长时间调用（例如网络通信、I/O磁盘读写等），则会阻塞后续的请求，造成资源的浪费。并且，当随着处理请求不断增加，导致并发执行的线程数量太多。过多的线程数量导致系统在线程调度和资源争用上的开销过大。引起系统性能急剧下降。导致系统处理能力下降。</p>
+<h2 id="事件驱动模型">事件驱动模型</h2>
+<p>同时，我们也能看到，很多系统也倾向于使用事件驱动模型，该模型的模型图如下图所示：</p>
+<p><img src="/img/seda2.jpg" alt=""></p>
+<p>该模型的思想为：将处理流程分割成多个步骤，每一个步骤都实现为一个有限状态机（FSM），所有的处理请求会作为事件进入系统，由调度器负责传递给相应的状态机，状态机的处理结果也以事件的形式传给调度器，新的事件将再次被调度器转发给下一个状态机进行处理，直至处理完成。该模型的优点在于，由于将各个处理步骤独立实现，可以很容易的进行系统监测和调整。但是其缺点也不容忽视，即：由于Scheduler的设计和实现过于复杂，针对于不同的应用和系统的逻辑变更需要不同的实现，导致采用这一模型构建出的系统将十分庞大和难以控制。</p>
+<p>综上所述，主流的多线程编程模型以及事件驱动编程模型虽然都各有其优势，但同时也都有其不可避免的缺陷，并不适合在高并发的环境下进行成熟系统的开发。所以这就是为什么我们要选择其他的模式来进行系统开发。以下介绍SEDA架构思想。</p>
+<h2 id="阶段性事件驱动（SEDA）模型">阶段性事件驱动（SEDA）模型</h2>
+<p>针对上述现有主流并发架构之缺陷，若能够实现一种良好支持高并发，并且能够对性能需求自适应的架构，则将在很大程度上优化和提升服务器性能，既能够提高运行速度，又可以减少服务器压力，实现了公司利益与用户体验的双赢。因此，为汲取多线程与事件驱动模型之优点，最大程度规避这两者之缺点，以实现较好的高并发服务器架构，SEDA便应运而生。</p>
+<p>SEDA(Staged Event Driven Architecture)是一种阶段性事件驱动的服务器应用程序架构。它是Matt Welsh博士于加州大学伯克利分校提出的一个高性能应用服务器模型。SEDA架构整合了多线程的服务器模型和事件驱动的服务器模型的优势，它可以高效地管理和控制服务器资源，良好地适应高并发环境，SEDA被设计成一个可伸缩的高可用服务器架构。</p>
+<p>应用服务器之请求处理步骤通常是复杂的、基于事件驱动处理的有穷状态机（FSM），所以实现服务器程序过程就类似用程序实现有穷状态机过程。下图所示的即是一基于SEDA模型http服务器有穷机状态图：</p>
+<p><img src="/img/seda3.jpg" alt=""></p>
+<p>SEDA架构能对有穷状态机进行分析，尔后将相关状态聚集在同一Stage中，Stage间采用队列的方式来进行通信。每一个Stage皆完全独立，均拥有自己的线程池，以及为了专门处理到达这一步骤所必须进行的工作。所有的Stage均通过自身事件队列连接在一起，构成完整的请求处理网络。性能控制器和动态线程池依请求的繁忙程度动态来调整线程池的大小，以达到系统资源的最有分配。每一个Stage由下述四部分组成：</p>
+<ul>
+<li><strong>事件队列</strong>：用以维持Stage间之通信。</li>
+<li><strong>事件处理器</strong>：用以执行请求到这一个Stage中所应执行的工作。</li>
+<li><strong>线程池</strong>：用以提供事件处理器且可以并发执行事件处理之环境。</li>
+<li><strong>性能控制器</strong>：用以对该Stage资源（线程数、队列长度等等）进行调整。</li>
+</ul>
+<p>通过这四部分的协作配合，每一个Stage都可以很好地运行，并且可以控制资源的使用。已经过Stage处理完，若没有后续工作，即可以回收线程池中的线程，来供给其他Stage使用。Stage结构如下图所示。<br>在SEDA架构中，基本的处理单元称为阶段（Stage），一个阶段由事件队列、动态线程池、事件处理器和一个性能控制器四个组件构成。SEDA将一个请求的处理过程分解为一系列的阶段，阶段之间通过事件队列联系，开发人员只负责每个阶段的服务逻辑以及阶段间的连接逻辑，而由各个阶段自身负责资源管理以及负载适应功能。使用这种解耦拆分可以使系统达到高并发性、对负载变化的良好适应性以及高度的可缩放性。</p>
+<p><img src="/img/seda4.jpg" alt=""></p>
+<h2 id="参考资料：">参考资料：</h2>
+<p>[1]    Michael Eckert and Fran¸cois Bry.Complex Event Processing (CEP) [R].德国：Institut f¨ur Informatik, Ludwig-Maximilians-Universit at Munchen，2009.<br>[2]    Matt Welsh.The Staged Event-Driven Architecture for Highly-Concurrent Server Applications [R].美国：University of California, Berkeley，2005.<br>[3]    Rob Von Behren，Jeremy Condit，George C. Necula etc. Scalable Threads for Internet Services[R].美国：University of California, Berkeley，2004</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/分布式/">分布式</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/SEDA/">SEDA</a>
+  </div>
+
+</div>
+
+
+<div class="article-share" id="share">
+
+  <div data-url="https://github.com/surlymo/2014/09/23/基于SEDA的异步框架设计与实现-为什么使用SEDA/" data-title="【基于SEDA的异步框架设计与实现】为什么使用SEDA | 飞小狐的博客" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2014/09/23/基于SEDA的异步框架设计与实现-异步框架技术选型/" title="【基于SEDA的异步框架设计与实现】异步框架技术选型">
+  <strong>上一篇：</strong><br/>
+  <span>
+  【基于SEDA的异步框架设计与实现】异步框架技术选型</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2014/09/23/基于SEDA的异步框架设计与实现-SEDA国内外研究现状/"  title="【基于SEDA的异步框架设计与实现】SEDA国内外研究现状">
+ <strong>下一篇：</strong><br/> 
+ <span>【基于SEDA的异步框架设计与实现】SEDA国内外研究现状
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+<!-- 多说评论框 start -->
+<div id="cc" class="ds-thread"></div>
+<!-- 多说评论框 end -->
+<!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+<script type="text/javascript">
+var duoshuoQuery = {short_name:"surlymo"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0] 
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+		 
+		 // 对多说评论的样式进行修改
+		 document.getElementById('cc').style.width="90%";
+		 document.getElementById('cc').style.margin="0px auto";
+		 document.getElementById('cc').style.padding="20px 0px";
+	})();
+	 
+	
+	</script>
+<!-- 多说公共JS代码 end -->
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#多线程并发模型"><span class="toc-number">1.</span> <span class="toc-text">多线程并发模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#事件驱动模型"><span class="toc-number">2.</span> <span class="toc-text">事件驱动模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#阶段性事件驱动（SEDA）模型"><span class="toc-number">3.</span> <span class="toc-text">阶段性事件驱动（SEDA）模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#参考资料："><span class="toc-number">4.</span> <span class="toc-text">参考资料：</span></a></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+			<li><a href="/categories/JDK使用/" title="JDK使用">JDK使用<sup>2</sup></a></li>
+		
+			<li><a href="/categories/Spring/" title="Spring">Spring<sup>2</sup></a></li>
+		
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>7</sup></a></li>
+		
+			<li><a href="/categories/备忘录/" title="备忘录">备忘录<sup>6</sup></a></li>
+		
+			<li><a href="/categories/敏捷之路/" title="敏捷之路">敏捷之路<sup>1</sup></a></li>
+		
+			<li><a href="/categories/网站架构/" title="网站架构">网站架构<sup>4</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/架构/" title="架构">架构<sup>4</sup></a></li>
+		
+			<li><a href="/tags/SEDA/" title="SEDA">SEDA<sup>4</sup></a></li>
+		
+			<li><a href="/tags/rabbitmq/" title="rabbitmq">rabbitmq<sup>3</sup></a></li>
+		
+			<li><a href="/tags/redis/" title="redis">redis<sup>3</sup></a></li>
+		
+			<li><a href="/tags/memcached/" title="memcached">memcached<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Quartz/" title="Quartz">Quartz<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Jetty/" title="Jetty">Jetty<sup>1</sup></a></li>
+		
+			<li><a href="/tags/zookeeper/" title="zookeeper">zookeeper<sup>1</sup></a></li>
+		
+			<li><a href="/tags/findbugs/" title="findbugs">findbugs<sup>1</sup></a></li>
+		
+			<li><a href="/tags/cobertura/" title="cobertura">cobertura<sup>1</sup></a></li>
+		
+			<li><a href="/tags/checkstyle/" title="checkstyle">checkstyle<sup>1</sup></a></li>
+		
+			<li><a href="/tags/Spring/" title="Spring">Spring<sup>1</sup></a></li>
+		
+			<li><a href="/tags/一致性哈希/" title="一致性哈希">一致性哈希<sup>1</sup></a></li>
+		
+			<li><a href="/tags/fastjson/" title="fastjson">fastjson<sup>1</sup></a></li>
+		
+			<li><a href="/tags/UT/" title="UT">UT<sup>1</sup></a></li>
+		
+			<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		
+			<li><a href="/tags/sun/" title="sun">sun<sup>1</sup></a></li>
+		
+			<li><a href="/tags/CyclicBarrier/" title="CyclicBarrier">CyclicBarrier<sup>1</sup></a></li>
+		
+			<li><a href="/tags/ThreadPoolExecutor/" title="ThreadPoolExecutor">ThreadPoolExecutor<sup>1</sup></a></li>
+		
+			<li><a href="/tags/JDK/" title="JDK">JDK<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+	  <li><a href="https://github.com/surlymo" target="_blank" title="Hexo">Surlymo Github</a></li>
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  <div class="weiboshow">
+  <p class="asidetitle">新浪微博</p>
+   <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=1&isFans=1&uid=1878748071&verifier=ae597523&dpc=1"></iframe>
+</div>
+
+
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font" class="clearfix">
+		
+		
+		
+		
+		
+		
+		
+		
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Pacman">Jacman</a> © 2015 
+		
+		<a href="https://github.com/surlymo/about" target="_blank" title="Surlymo">Surlymo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+
+
+<div id="totop">
+<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+</div>
+
+<script src="/js/totop.js"></script>
+
+
+
+
+  </body>
+</html>
+
+
+<a href="https://github.com/surlymo"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>

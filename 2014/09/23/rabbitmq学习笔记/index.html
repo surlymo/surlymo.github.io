@@ -1,0 +1,530 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>【备忘】rabbitmq学习笔记 | 飞小狐的博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Surlymo">
+    
+    <meta name="description" content="写在前面
+前一阵子写SEDA异步框架的时候，使用了rabbitmq作为分布式消息队列（见前文），把一些学习官网教程的笔记简单备忘。示例都来自官网
+Part 2 Work Queues
+
+round-robin dispatchering缺陷：存在不能准确负载均衡的弊端
+
+fair dispatch ">
+    
+    
+    
+    
+    <link rel="alternative" href="/atom.xml" title="飞小狐的博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="飞小狐的博客" title="飞小狐的博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="飞小狐的博客">飞小狐的博客</a></h1>
+				<h2 class="blog-motto">Action speak louder than words</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:github.com/surlymo">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2014/09/23/rabbitmq学习笔记/" title="【备忘】rabbitmq学习笔记" itemprop="url">【备忘】rabbitmq学习笔记</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="https://github.com/surlymo/about" title="Surlymo" target="_blank" itemprop="author">Surlymo</a>
+		
+  <p class="article-time">
+    <time datetime="2014-09-23T09:55:11.000Z" itemprop="datePublished"> 发表于 9月 23 2014</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#写在前面"><span class="toc-number">1.</span> <span class="toc-text">写在前面</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part_2_Work_Queues"><span class="toc-number">2.</span> <span class="toc-text">Part 2 Work Queues</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part_3_Publish/Subscribe"><span class="toc-number">3.</span> <span class="toc-text">Part 3 Publish/Subscribe</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#example:"><span class="toc-number">4.</span> <span class="toc-text">example:</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part_4_Routing"><span class="toc-number">5.</span> <span class="toc-text">Part 4 Routing</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part5_Topic"><span class="toc-number">6.</span> <span class="toc-text">Part5 Topic</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#集群方案"><span class="toc-number">7.</span> <span class="toc-text">集群方案</span></a></li></ol>
+		
+		</div>
+		
+		<h2 id="写在前面">写在前面</h2>
+<p>前一阵子写SEDA异步框架的时候，使用了rabbitmq作为分布式消息队列（见前文），把一些学习官网教程的笔记简单备忘。示例都来自官网</p>
+<h2 id="Part_2_Work_Queues">Part 2 Work Queues</h2>
+<ul>
+<li><p>round-robin dispatchering<br>缺陷：存在不能准确负载均衡的弊端</p>
+</li>
+<li><p>fair dispatch  —&gt; 针对<strong>管道</strong><br>采用如下语句来决定接受和分发的消息上限。缺陷：可能带来队列阻塞</p>
+</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">channel.basicQos(prefetchCount);</div></pre></td></tr></table></figure>
+
+<ul>
+<li>message acknowledge  —&gt; 针对<strong>消费者</strong></li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">boolean</span> autoAck = <span class="keyword">false</span>;channel.basicConsume(<span class="string">"hello"</span>, autoAck, consumer);<span class="comment">//默认是true，别用反了</span></div><div class="line"></div><div class="line"><span class="keyword">while</span> (<span class="keyword">true</span>) {</div><div class="line">  QueueingConsumer.Delivery delivery = consumer.nextDelivery();</div><div class="line">  <span class="comment">//...     </span></div><div class="line">  channel.basicAck(delivery.getEnvelope().getDeliveryTag(), <span class="keyword">false</span>);<span class="comment">// 记得手动加上发送ack。不然server会认为client没收到</span></div><div class="line">}</div></pre></td></tr></table></figure>
+
+<ul>
+<li>Message durability  —&gt; 针对<strong>队列</strong></li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">boolean</span> durable = <span class="keyword">true</span>;</div><div class="line">channel.queueDeclare(<span class="string">"hello"</span>, durable, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);</div></pre></td></tr></table></figure>
+
+<ul>
+<li>persistent —&gt; 针对<strong>发布者</strong></li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">import</span> com.rabbitmq.client.MessageProperties;</div><div class="line">channel.basicPublish(<span class="string">""</span>, <span class="string">"task_queue"</span>, MessageProperties.PERSISTENT_TEXT_PLAIN,message.getBytes());</div></pre></td></tr></table></figure>
+
+<p><strong>例子</strong></p>
+<ul>
+<li>任务类：</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">NewTask</span> </span>{  </div><div class="line">  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String TASK_QUEUE_NAME = <span class="string">"task_queue"</span>;  </div><div class="line">  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                      <span class="keyword">throws</span> java.io.IOException {  </div><div class="line">  </div><div class="line">    ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">    factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">    Connection connection = factory.newConnection();  </div><div class="line">    Channel channel = connection.createChannel();  </div><div class="line">  </div><div class="line">    channel.queueDeclare(TASK_QUEUE_NAME, <span class="keyword">true</span>, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);  </div><div class="line">  </div><div class="line">    String message = getMessage(argv);  </div><div class="line">  </div><div class="line">    channel.basicPublish( <span class="string">""</span>, TASK_QUEUE_NAME,  </div><div class="line">            MessageProperties.PERSISTENT_TEXT_PLAIN,  </div><div class="line">            message.getBytes());  </div><div class="line">    System.out.println(<span class="string">" [x] Sent '"</span> + message + <span class="string">"'"</span>);  </div><div class="line">  </div><div class="line">    channel.close();  </div><div class="line">    connection.close();  </div><div class="line">  }       </div><div class="line">  <span class="comment">//...  </span></div><div class="line">}</div></pre></td></tr></table></figure>
+
+<ul>
+<li>消费者：</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Worker</span> </span>{  </div><div class="line">  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String TASK_QUEUE_NAME = <span class="string">"task_queue"</span>;  </div><div class="line">  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                      <span class="keyword">throws</span> java.io.IOException,  </div><div class="line">                      java.lang.InterruptedException {  </div><div class="line">  </div><div class="line">    ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">    factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">    Connection connection = factory.newConnection();  </div><div class="line">    Channel channel = connection.createChannel();  </div><div class="line">  </div><div class="line">    channel.queueDeclare(TASK_QUEUE_NAME, <span class="keyword">true</span>, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);  </div><div class="line">    System.out.println(<span class="string">" [*] Waiting for messages. To exit press CTRL+C"</span>);  </div><div class="line">  </div><div class="line">    channel.basicQos(<span class="number">1</span>);  </div><div class="line">  </div><div class="line">    QueueingConsumer consumer = <span class="keyword">new</span> QueueingConsumer(channel);  </div><div class="line">    channel.basicConsume(TASK_QUEUE_NAME, <span class="keyword">false</span>, consumer);  </div><div class="line">  </div><div class="line">    <span class="keyword">while</span> (<span class="keyword">true</span>) {  </div><div class="line">          QueueingConsumer.Delivery delivery = consumer.nextDelivery();  </div><div class="line">          String message = <span class="keyword">new</span> String(delivery.getBody());  </div><div class="line">  </div><div class="line">          System.out.println(<span class="string">" [x] Received '"</span> + message + <span class="string">"'"</span>);    </div><div class="line">          doWork(message);  </div><div class="line">          System.out.println(<span class="string">" [x] Done"</span> );  </div><div class="line">  </div><div class="line">          channel.basicAck(delivery.getEnvelope().getDeliveryTag(), <span class="keyword">false</span>);  </div><div class="line">    }  </div><div class="line">  }  </div><div class="line">  <span class="comment">//...  </span></div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h2 id="Part_3_Publish/Subscribe">Part 3 Publish/Subscribe</h2>
+<ul>
+<li><p>Exchanges(类似block)<br>Type：direct, topic, headers, fanout(类似广播)<br>Declared way:  channel.exchangeDeclare(“logs”, “fanout”);</p>
+</li>
+<li><p>Temporary queue<br>Non-durable, exclusive, autodelete<br>String queueName = channel.queueDeclare().getQueue();</p>
+</li>
+<li><p>Bindings<br>channel.queueBind(queueName, “logs”, “”);</p>
+</li>
+</ul>
+<h2 id="example:">example:</h2>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">EmitLog</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> java.io.IOException {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"fanout"</span>);  </div><div class="line">        String message = getMessage(argv);  </div><div class="line">        channel.basicPublish(EXCHANGE_NAME, <span class="string">""</span>, <span class="keyword">null</span>, message.getBytes());  </div><div class="line">        System.out.println(<span class="string">" [x] Sent '"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        channel.close();  </div><div class="line">        connection.close();  </div><div class="line">    }  </div><div class="line">    <span class="comment">//...  </span></div><div class="line">}  </div><div class="line">   </div><div class="line">   </div><div class="line">   </div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ReceiveLogs</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> java.io.IOException,  </div><div class="line">                  java.lang.InterruptedException {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"fanout"</span>);  </div><div class="line">        String queueName = channel.queueDeclare().getQueue();  </div><div class="line">        channel.queueBind(queueName, EXCHANGE_NAME, <span class="string">""</span>);  </div><div class="line">        System.out.println(<span class="string">" [*] Waiting for messages. To exit press CTRL+C"</span>);  </div><div class="line">        QueueingConsumer consumer = <span class="keyword">new</span> QueueingConsumer(channel);  </div><div class="line">        channel.basicConsume(queueName, <span class="keyword">true</span>, consumer);  </div><div class="line">        <span class="keyword">while</span> (<span class="keyword">true</span>) {  </div><div class="line">            QueueingConsumer.Delivery delivery = consumer.nextDelivery();  </div><div class="line">            String message = <span class="keyword">new</span> String(delivery.getBody());  </div><div class="line">            System.out.println(<span class="string">" [x] Received '"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        }  </div><div class="line">    }  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h2 id="Part_4_Routing">Part 4 Routing</h2>
+<ol>
+<li><p>Direct exchange<br>Type：direct, topic, headers, fanout(类似广播)<br>Declared way:  channel.exchangeDeclare(“logs”, “fanout”);</p>
+</li>
+<li><p>Multiple bindings</p>
+</li>
+</ol>
+<p><strong>example</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">EmitLogDirect</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"direct_logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> java.io.IOException {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"direct"</span>);  </div><div class="line">        String severity = getSeverity(argv);  </div><div class="line">        String message = getMessage(argv);  </div><div class="line">        channel.basicPublish(EXCHANGE_NAME, severity, <span class="keyword">null</span>,    message.getBytes());  </div><div class="line">        System.out.println(<span class="string">" [x] Sent '"</span> + severity + <span class="string">"':'"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        channel.close();  </div><div class="line">        connection.close();  </div><div class="line">    }  </div><div class="line">    <span class="comment">//..  </span></div><div class="line">}  </div><div class="line">   </div><div class="line">   </div><div class="line">   </div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ReceiveLogsDirect</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"direct_logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> java.io.IOException,  </div><div class="line">                  java.lang.InterruptedException {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"direct"</span>);  </div><div class="line">        String queueName = channel.queueDeclare().getQueue();  </div><div class="line">        <span class="keyword">if</span> (argv.length &lt; <span class="number">1</span>){  </div><div class="line">            System.err.println(<span class="string">"Usage: ReceiveLogsDirect [info] [warning] [error]"</span>);  </div><div class="line">            System.exit(<span class="number">1</span>);  </div><div class="line">        }  </div><div class="line">        <span class="keyword">for</span>(String severity : argv){  </div><div class="line">            channel.queueBind(queueName, EXCHANGE_NAME, severity);  </div><div class="line">        }  </div><div class="line">        System.out.println(<span class="string">" [*] Waiting for messages. To exit press CTRL+C"</span>);  </div><div class="line">        QueueingConsumer consumer = <span class="keyword">new</span> QueueingConsumer(channel);  </div><div class="line">        channel.basicConsume(queueName, <span class="keyword">true</span>, consumer);  </div><div class="line">        <span class="keyword">while</span> (<span class="keyword">true</span>) {  </div><div class="line">            QueueingConsumer.Delivery delivery = consumer.nextDelivery();  </div><div class="line">            String message = <span class="keyword">new</span> String(delivery.getBody());  </div><div class="line">            String routingKey = delivery.getEnvelope().getRoutingKey();  </div><div class="line">            System.out.println(<span class="string">" [x] Received '"</span> + routingKey + <span class="string">"':'"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        }  </div><div class="line">    }  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h2 id="Part5_Topic">Part5 Topic</h2>
+<ol>
+<li>Topic exchange<br>比direct exchange方式好的地方是有通配符的概念在里面<br><strong>* (star)</strong> can substitute for exactly one word.<br><strong># (hash)</strong> can substitute for zero or more words.<br>Delimited by dots<br>Routing_key up to the limit of <strong>255</strong> bytes</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">EmitLogTopic</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"topic_logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> Exception {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"topic"</span>);  </div><div class="line">        String routingKey = getRouting(argv);  </div><div class="line">        String message = getMessage(argv);  </div><div class="line">        channel.basicPublish(EXCHANGE_NAME, routingKey, <span class="keyword">null</span>, message.getBytes());  </div><div class="line">        System.out.println(<span class="string">" [x] Sent '"</span> + routingKey + <span class="string">"':'"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        connection.close();  </div><div class="line">    }  </div><div class="line">    <span class="comment">//...  </span></div><div class="line">}  </div><div class="line">   </div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ReceiveLogsTopic</span> </span>{  </div><div class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String EXCHANGE_NAME = <span class="string">"topic_logs"</span>;  </div><div class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] argv)  </div><div class="line">                  <span class="keyword">throws</span> Exception {  </div><div class="line">        ConnectionFactory factory = <span class="keyword">new</span> ConnectionFactory();  </div><div class="line">        factory.setHost(<span class="string">"localhost"</span>);  </div><div class="line">        Connection connection = factory.newConnection();  </div><div class="line">        Channel channel = connection.createChannel();  </div><div class="line">        channel.exchangeDeclare(EXCHANGE_NAME, <span class="string">"topic"</span>);  </div><div class="line">        String queueName = channel.queueDeclare().getQueue();  </div><div class="line">        <span class="keyword">if</span> (argv.length &lt; <span class="number">1</span>){  </div><div class="line">            System.err.println(<span class="string">"Usage: ReceiveLogsTopic [binding_key]..."</span>);  </div><div class="line">            System.exit(<span class="number">1</span>);  </div><div class="line">        }  </div><div class="line">       <span class="keyword">for</span>(String bindingKey : argv){  </div><div class="line">            channel.queueBind(queueName, EXCHANGE_NAME, bindingKey);  </div><div class="line">        }  </div><div class="line">        System.out.println(<span class="string">" [*] Waiting for messages. To exit press CTRL+C"</span>);  </div><div class="line">        QueueingConsumer consumer = <span class="keyword">new</span> QueueingConsumer(channel);  </div><div class="line">        channel.basicConsume(queueName, <span class="keyword">true</span>, consumer);  </div><div class="line">        <span class="keyword">while</span> (<span class="keyword">true</span>) {  </div><div class="line">            QueueingConsumer.Delivery delivery = consumer.nextDelivery();  </div><div class="line">            String message = <span class="keyword">new</span> String(delivery.getBody());  </div><div class="line">            String routingKey = delivery.getEnvelope().getRoutingKey();  </div><div class="line">            System.out.println(<span class="string">" [x] Received '"</span> + routingKey + <span class="string">"':'"</span> + message + <span class="string">"'"</span>);  </div><div class="line">        }  </div><div class="line">    }  </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h2 id="集群方案">集群方案</h2>
+<p>一般采用镜像队列，内存节点作为主服务器+磁盘节点做冗余。</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/备忘录/">备忘录</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/rabbitmq/">rabbitmq</a>
+  </div>
+
+</div>
+
+
+<div class="article-share" id="share">
+
+  <div data-url="https://github.com/surlymo/2014/09/23/rabbitmq学习笔记/" data-title="【备忘】rabbitmq学习笔记 | 飞小狐的博客" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2014/09/23/如何在单测中隔离每个case对DB数据的操作/" title="如何在单测中隔离每个case对DB数据的操作">
+  <strong>上一篇：</strong><br/>
+  <span>
+  如何在单测中隔离每个case对DB数据的操作</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2014/09/23/代码格式化与静态检查/"  title="【备忘】代码格式化与静态检查">
+ <strong>下一篇：</strong><br/> 
+ <span>【备忘】代码格式化与静态检查
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+<!-- 多说评论框 start -->
+<div id="cc" class="ds-thread"></div>
+<!-- 多说评论框 end -->
+<!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+<script type="text/javascript">
+var duoshuoQuery = {short_name:"surlymo"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0] 
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+		 
+		 // 对多说评论的样式进行修改
+		 document.getElementById('cc').style.width="90%";
+		 document.getElementById('cc').style.margin="0px auto";
+		 document.getElementById('cc').style.padding="20px 0px";
+	})();
+	 
+	
+	</script>
+<!-- 多说公共JS代码 end -->
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#写在前面"><span class="toc-number">1.</span> <span class="toc-text">写在前面</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part_2_Work_Queues"><span class="toc-number">2.</span> <span class="toc-text">Part 2 Work Queues</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part_3_Publish/Subscribe"><span class="toc-number">3.</span> <span class="toc-text">Part 3 Publish/Subscribe</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#example:"><span class="toc-number">4.</span> <span class="toc-text">example:</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part_4_Routing"><span class="toc-number">5.</span> <span class="toc-text">Part 4 Routing</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part5_Topic"><span class="toc-number">6.</span> <span class="toc-text">Part5 Topic</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#集群方案"><span class="toc-number">7.</span> <span class="toc-text">集群方案</span></a></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+			<li><a href="/categories/JDK使用/" title="JDK使用">JDK使用<sup>2</sup></a></li>
+		
+			<li><a href="/categories/Spring/" title="Spring">Spring<sup>2</sup></a></li>
+		
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>7</sup></a></li>
+		
+			<li><a href="/categories/备忘录/" title="备忘录">备忘录<sup>6</sup></a></li>
+		
+			<li><a href="/categories/敏捷之路/" title="敏捷之路">敏捷之路<sup>1</sup></a></li>
+		
+			<li><a href="/categories/网站架构/" title="网站架构">网站架构<sup>4</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/架构/" title="架构">架构<sup>4</sup></a></li>
+		
+			<li><a href="/tags/SEDA/" title="SEDA">SEDA<sup>4</sup></a></li>
+		
+			<li><a href="/tags/rabbitmq/" title="rabbitmq">rabbitmq<sup>3</sup></a></li>
+		
+			<li><a href="/tags/redis/" title="redis">redis<sup>3</sup></a></li>
+		
+			<li><a href="/tags/memcached/" title="memcached">memcached<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Quartz/" title="Quartz">Quartz<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Jetty/" title="Jetty">Jetty<sup>1</sup></a></li>
+		
+			<li><a href="/tags/zookeeper/" title="zookeeper">zookeeper<sup>1</sup></a></li>
+		
+			<li><a href="/tags/findbugs/" title="findbugs">findbugs<sup>1</sup></a></li>
+		
+			<li><a href="/tags/cobertura/" title="cobertura">cobertura<sup>1</sup></a></li>
+		
+			<li><a href="/tags/checkstyle/" title="checkstyle">checkstyle<sup>1</sup></a></li>
+		
+			<li><a href="/tags/Spring/" title="Spring">Spring<sup>1</sup></a></li>
+		
+			<li><a href="/tags/一致性哈希/" title="一致性哈希">一致性哈希<sup>1</sup></a></li>
+		
+			<li><a href="/tags/fastjson/" title="fastjson">fastjson<sup>1</sup></a></li>
+		
+			<li><a href="/tags/UT/" title="UT">UT<sup>1</sup></a></li>
+		
+			<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		
+			<li><a href="/tags/sun/" title="sun">sun<sup>1</sup></a></li>
+		
+			<li><a href="/tags/CyclicBarrier/" title="CyclicBarrier">CyclicBarrier<sup>1</sup></a></li>
+		
+			<li><a href="/tags/ThreadPoolExecutor/" title="ThreadPoolExecutor">ThreadPoolExecutor<sup>1</sup></a></li>
+		
+			<li><a href="/tags/JDK/" title="JDK">JDK<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+	  <li><a href="https://github.com/surlymo" target="_blank" title="Hexo">Surlymo Github</a></li>
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  <div class="weiboshow">
+  <p class="asidetitle">新浪微博</p>
+   <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=1&isFans=1&uid=1878748071&verifier=ae597523&dpc=1"></iframe>
+</div>
+
+
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font" class="clearfix">
+		
+		
+		
+		
+		
+		
+		
+		
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Pacman">Jacman</a> © 2015 
+		
+		<a href="https://github.com/surlymo/about" target="_blank" title="Surlymo">Surlymo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+
+
+<div id="totop">
+<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+</div>
+
+<script src="/js/totop.js"></script>
+
+
+
+
+  </body>
+</html>
+
+
+<a href="https://github.com/surlymo"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>

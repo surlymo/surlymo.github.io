@@ -1,0 +1,497 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>【备忘】老消息中心开发中碰到的问题 | 飞小狐的博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Surlymo">
+    
+    <meta name="description" content="备忘一：启动Jetty报错
+在整合好spring-mvc3、maven、以及mybatis之后，启动jetty7.0.pre5时，发现了如下错误：
+1ClassNotFoundException: javax.interceptor.InvocationContext
+
+从网上查了很久，花了很多时间">
+    
+    
+    
+    
+    <link rel="alternative" href="/atom.xml" title="飞小狐的博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="飞小狐的博客" title="飞小狐的博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="飞小狐的博客">飞小狐的博客</a></h1>
+				<h2 class="blog-motto">Action speak louder than words</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:github.com/surlymo">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2014/09/22/老消息中心开发中的备忘录/" title="【备忘】老消息中心开发中碰到的问题" itemprop="url">【备忘】老消息中心开发中碰到的问题</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="https://github.com/surlymo/about" title="Surlymo" target="_blank" itemprop="author">Surlymo</a>
+		
+  <p class="article-time">
+    <time datetime="2014-09-22T04:30:38.000Z" itemprop="datePublished"> 发表于 9月 22 2014</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#备忘一：启动Jetty报错"><span class="toc-number">1.</span> <span class="toc-text">备忘一：启动Jetty报错</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#备忘二：maven编译时报错提示找不到sun的某个包"><span class="toc-number">2.</span> <span class="toc-text">备忘二：maven编译时报错提示找不到sun的某个包</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#备忘三：spring版本与配置不兼容"><span class="toc-number">3.</span> <span class="toc-text">备忘三：spring版本与配置不兼容</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#备忘四：jetty启动异常"><span class="toc-number">4.</span> <span class="toc-text">备忘四：jetty启动异常</span></a></li></ol>
+		
+		</div>
+		
+		<h2 id="备忘一：启动Jetty报错">备忘一：启动Jetty报错</h2>
+<p>在整合好spring-mvc3、maven、以及mybatis之后，启动jetty7.0.pre5时，发现了如下错误：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">ClassNotFoundException: javax.interceptor.InvocationContext</div></pre></td></tr></table></figure>
+
+<p>从网上查了很久，花了很多时间，最后才找出来解决办法：更换jetty插件版本： </p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">plugin</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">groupId</span>&gt;</span>org.mortbay.jetty<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>maven-jetty-plugin<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">version</span>&gt;</span>6.1.26<span class="tag">&lt;/<span class="title">version</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">configuration</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">webApp</span>&gt;</span>target/iris-0.0.1-SNAPSHOT.war<span class="tag">&lt;/<span class="title">webApp</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">connectors</span>&gt;</span>  </div><div class="line">			<span class="tag">&lt;<span class="title">connector</span>  </span></div><div class="line">				<span class="attribute">implementation</span>=<span class="value">"org.mortbay.jetty.nio.SelectChannelConnector"</span>&gt;  </div><div class="line">				<span class="tag">&lt;<span class="title">port</span>&gt;</span>8087<span class="tag">&lt;/<span class="title">port</span>&gt;</span>  </div><div class="line">			<span class="tag">&lt;/<span class="title">connector</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;/<span class="title">connectors</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">stopKey</span>&gt;</span>exit<span class="tag">&lt;/<span class="title">stopKey</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">stopPort</span>&gt;</span>8081<span class="tag">&lt;/<span class="title">stopPort</span>&gt;</span>  </div><div class="line">		<span class="tag">&lt;<span class="title">scanIntervalSeconds</span>&gt;</span>2<span class="tag">&lt;/<span class="title">scanIntervalSeconds</span>&gt;</span>  </div><div class="line">	<span class="tag">&lt;/<span class="title">configuration</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">plugin</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p><a href="http://jira.codehaus.org/browse/JETTY-780?page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel" target="_blank" rel="external">更多相关参考材料请点击我</a></p>
+<h2 id="备忘二：maven编译时报错提示找不到sun的某个包">备忘二：maven编译时报错提示找不到sun的某个包</h2>
+<p>报错提示找不到com.sun.xml.internal.messaging.saaj.util包。我们应该尽量避免使用sun的包。前人早已经踩过这个坑。原因也说得很明白，好端端的为什么要使用sun的internal类。采用javax里的MimeUtility类即可：</p>
+<blockquote>
+<p>Sun’s <em>java compiler</em> detects when a special<br>“internal” class is being accessed, and refuses to import the class.<br>Eclipse uses a different compiler which presumably does not have this check. </p>
+<p>Maven just uses the javac compiler available in the system execution<br>path. Therefore the problem is nothing to do with Maven at all. It’s the<br>compiler that maven is invoking which is refusing to compile the source.<br>I can’t see any public flags in the javac commandline to disable this<br>“blocking” of internal access, so unless you want to avoid using Sun’s<br>javac compiler you’ll just have to avoid using this internal class.</p>
+</blockquote>
+<p><a href="http://maven.40175.n5.nabble.com/Why-can-t-Maven-find-com-sun-xml-internal-messaging-saaj-util-ByteOutputStream-class-td107361.html" target="_blank" rel="external">更多相关参考材料请点击我</a></p>
+<h2 id="备忘三：spring版本与配置不兼容">备忘三：spring版本与配置不兼容</h2>
+<p>发现问题如下：</p>
+<blockquote>
+<p>Document root element “beans”,must match DOCTYPE root “null”</p>
+</blockquote>
+<p>原因即spirng 1.x采用的是DOCTYPE，而spring 2.x采用的是Schema，所以如果</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="doctype">&lt;!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd"&gt;</span></div></pre></td></tr></table></figure>
+
+<p>这样来声明时，即为spring1.x的版本。如果声明方式为：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">beans</span></span></div><div class="line">xmlns="http://<span class="attribute">www.springframework.org</span>/<span class="attribute">schema</span>/<span class="attribute">beans</span>"</div><div class="line"><span class="attribute">xmlns:xsi</span>=<span class="value">"http://www.w3.org/2001/XMLSchema-instance"</span></div><div class="line"><span class="attribute">xsi:schemaLocation</span>=<span class="value">"http://www.springframework.org/schema/beans   http://www.springframework.org/schema/beans/spring-beans-2.0.xsd"</span>&gt;</div></pre></td></tr></table></figure>
+
+<p>即为spring2.x的版本。如果出现这个错误，则check下你的spring是否变成了1.x。</p>
+<h2 id="备忘四：jetty启动异常">备忘四：jetty启动异常</h2>
+<p>启动jetty后，log中不断交替出现</p>
+<blockquote>
+<p>Connector vm://localhost Started/Stopped</p>
+</blockquote>
+<p>这是由activemq而引发的问题。问题的原因是在默认情况下，activemq只有当topic/queue有数据时候才会保持它在内存中的存在。所以当队列或者主题中没有数据时，activemq将不断进行启动和停止的操作。要解决这一现象，必须在spring配置文件中的activemq的listenercontainer声明时，加上<property name="cacheLevelName" value="CACHE_CONNECTION">这句。<br>加上之后，重新启动，everything done。 </property></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"queueListenerContainer"</span>  </span></div><div class="line">	<span class="attribute">class</span>=<span class="value">"org.springframework.jms.listener.DefaultMessageListenerContainer"</span>&gt;  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"cacheLevelName"</span> <span class="attribute">value</span>=<span class="value">"CACHE_CONNECTION"</span>/&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"connectionFactory"</span> <span class="attribute">ref</span>=<span class="value">"jmsConnectionFactory"</span> /&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"destination"</span> <span class="attribute">ref</span>=<span class="value">"QUEUE"</span> /&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"messageListener"</span> <span class="attribute">ref</span>=<span class="value">"queueListener"</span> /&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"transactionManager"</span> <span class="attribute">ref</span>=<span class="value">"jmsTransactionManager"</span> /&gt;</span>  </div><div class="line">	<span class="comment">&lt;!-- 使用外部事务管理器时设置为true，默认false --&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"sessionTransacted"</span> <span class="attribute">value</span>=<span class="value">"true"</span> /&gt;</span>  </div><div class="line">	<span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"concurrency"</span> <span class="attribute">value</span>=<span class="value">"1-100"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p><a href="http://forum.spring.io/forum/spring-projects/integration/jms/78914-activemq-infinitive-loop-connector-start-stop" target="_blank" rel="external">更多相关参考材料请点击我</a></p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/备忘录/">备忘录</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/sun/">sun</a><a href="/tags/Jetty/">Jetty</a>
+  </div>
+
+</div>
+
+
+<div class="article-share" id="share">
+
+  <div data-url="https://github.com/surlymo/2014/09/22/老消息中心开发中的备忘录/" data-title="【备忘】老消息中心开发中碰到的问题 | 飞小狐的博客" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2014/09/23/spring-data-redis中的坑和误区/" title="spring-data-redis中的坑和误区">
+  <strong>上一篇：</strong><br/>
+  <span>
+  spring-data-redis中的坑和误区</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2014/09/22/JAVA代理与反射/"  title="JAVA代理与反射学习笔记">
+ <strong>下一篇：</strong><br/> 
+ <span>JAVA代理与反射学习笔记
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+<!-- 多说评论框 start -->
+<div id="cc" class="ds-thread"></div>
+<!-- 多说评论框 end -->
+<!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+<script type="text/javascript">
+var duoshuoQuery = {short_name:"surlymo"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0] 
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+		 
+		 // 对多说评论的样式进行修改
+		 document.getElementById('cc').style.width="90%";
+		 document.getElementById('cc').style.margin="0px auto";
+		 document.getElementById('cc').style.padding="20px 0px";
+	})();
+	 
+	
+	</script>
+<!-- 多说公共JS代码 end -->
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#备忘一：启动Jetty报错"><span class="toc-number">1.</span> <span class="toc-text">备忘一：启动Jetty报错</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#备忘二：maven编译时报错提示找不到sun的某个包"><span class="toc-number">2.</span> <span class="toc-text">备忘二：maven编译时报错提示找不到sun的某个包</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#备忘三：spring版本与配置不兼容"><span class="toc-number">3.</span> <span class="toc-text">备忘三：spring版本与配置不兼容</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#备忘四：jetty启动异常"><span class="toc-number">4.</span> <span class="toc-text">备忘四：jetty启动异常</span></a></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+			<li><a href="/categories/JDK使用/" title="JDK使用">JDK使用<sup>2</sup></a></li>
+		
+			<li><a href="/categories/Spring/" title="Spring">Spring<sup>2</sup></a></li>
+		
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>7</sup></a></li>
+		
+			<li><a href="/categories/备忘录/" title="备忘录">备忘录<sup>6</sup></a></li>
+		
+			<li><a href="/categories/敏捷之路/" title="敏捷之路">敏捷之路<sup>1</sup></a></li>
+		
+			<li><a href="/categories/网站架构/" title="网站架构">网站架构<sup>4</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/架构/" title="架构">架构<sup>4</sup></a></li>
+		
+			<li><a href="/tags/SEDA/" title="SEDA">SEDA<sup>4</sup></a></li>
+		
+			<li><a href="/tags/rabbitmq/" title="rabbitmq">rabbitmq<sup>3</sup></a></li>
+		
+			<li><a href="/tags/redis/" title="redis">redis<sup>3</sup></a></li>
+		
+			<li><a href="/tags/memcached/" title="memcached">memcached<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Quartz/" title="Quartz">Quartz<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Jetty/" title="Jetty">Jetty<sup>1</sup></a></li>
+		
+			<li><a href="/tags/zookeeper/" title="zookeeper">zookeeper<sup>1</sup></a></li>
+		
+			<li><a href="/tags/findbugs/" title="findbugs">findbugs<sup>1</sup></a></li>
+		
+			<li><a href="/tags/cobertura/" title="cobertura">cobertura<sup>1</sup></a></li>
+		
+			<li><a href="/tags/checkstyle/" title="checkstyle">checkstyle<sup>1</sup></a></li>
+		
+			<li><a href="/tags/Spring/" title="Spring">Spring<sup>1</sup></a></li>
+		
+			<li><a href="/tags/一致性哈希/" title="一致性哈希">一致性哈希<sup>1</sup></a></li>
+		
+			<li><a href="/tags/fastjson/" title="fastjson">fastjson<sup>1</sup></a></li>
+		
+			<li><a href="/tags/UT/" title="UT">UT<sup>1</sup></a></li>
+		
+			<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		
+			<li><a href="/tags/sun/" title="sun">sun<sup>1</sup></a></li>
+		
+			<li><a href="/tags/CyclicBarrier/" title="CyclicBarrier">CyclicBarrier<sup>1</sup></a></li>
+		
+			<li><a href="/tags/ThreadPoolExecutor/" title="ThreadPoolExecutor">ThreadPoolExecutor<sup>1</sup></a></li>
+		
+			<li><a href="/tags/JDK/" title="JDK">JDK<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+	  <li><a href="https://github.com/surlymo" target="_blank" title="Hexo">Surlymo Github</a></li>
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  <div class="weiboshow">
+  <p class="asidetitle">新浪微博</p>
+   <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=1&isFans=1&uid=1878748071&verifier=ae597523&dpc=1"></iframe>
+</div>
+
+
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font" class="clearfix">
+		
+		
+		
+		
+		
+		
+		
+		
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Pacman">Jacman</a> © 2015 
+		
+		<a href="https://github.com/surlymo/about" target="_blank" title="Surlymo">Surlymo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+
+
+<div id="totop">
+<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+</div>
+
+<script src="/js/totop.js"></script>
+
+
+
+
+  </body>
+</html>
+
+
+<a href="https://github.com/surlymo"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>

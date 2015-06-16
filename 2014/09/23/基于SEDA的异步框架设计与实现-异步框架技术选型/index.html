@@ -1,0 +1,516 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>【基于SEDA的异步框架设计与实现】异步框架技术选型 | 飞小狐的博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Surlymo">
+    
+    <meta name="description" content="在这次实现的SEDA异步框架中，采用的基础架构原型如下：
+
+采用了spring+quartz+fastjson+rabbitmq来实现。和传统SEDA架构区别比较大的地方在于：
+
+采用分布式mq（使用了rabbitmq）而不是blockingqueue。如此既可以支持以后可能进行的分布式化扩展，也可">
+    
+    
+    
+    
+    <link rel="alternative" href="/atom.xml" title="飞小狐的博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="飞小狐的博客" title="飞小狐的博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="飞小狐的博客">飞小狐的博客</a></h1>
+				<h2 class="blog-motto">Action speak louder than words</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:github.com/surlymo">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2014/09/23/基于SEDA的异步框架设计与实现-异步框架技术选型/" title="【基于SEDA的异步框架设计与实现】异步框架技术选型" itemprop="url">【基于SEDA的异步框架设计与实现】异步框架技术选型</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="https://github.com/surlymo/about" title="Surlymo" target="_blank" itemprop="author">Surlymo</a>
+		
+  <p class="article-time">
+    <time datetime="2014-09-23T12:57:32.000Z" itemprop="datePublished"> 发表于 9月 23 2014</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#spring"><span class="toc-number">1.</span> <span class="toc-text">spring</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#quartz"><span class="toc-number">2.</span> <span class="toc-text">quartz</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#fastjson"><span class="toc-number">3.</span> <span class="toc-text">fastjson</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#rabbitmq"><span class="toc-number">4.</span> <span class="toc-text">rabbitmq</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#activemq"><span class="toc-number">4.1.</span> <span class="toc-text">activemq</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#zeromq"><span class="toc-number">4.2.</span> <span class="toc-text">zeromq</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#redis"><span class="toc-number">4.3.</span> <span class="toc-text">redis</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#kafka"><span class="toc-number">4.4.</span> <span class="toc-text">kafka</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#rabbitmq-1"><span class="toc-number">4.5.</span> <span class="toc-text">rabbitmq</span></a></li></ol></li></ol>
+		
+		</div>
+		
+		<p>在这次实现的SEDA异步框架中，采用的基础架构原型如下：</p>
+<p><img src="/img/seda5.jpg" alt=""></p>
+<p>采用了spring+quartz+fastjson+rabbitmq来实现。和传统SEDA架构区别比较大的地方在于：</p>
+<ul>
+<li>采用分布式mq（使用了rabbitmq）而不是blockingqueue。如此既可以支持以后可能进行的分布式化扩展，也可以使得框架具有高可用性，在大数据处理的时候仍可具有较为客观的性能。同时，消息的传递过程中，采用了高性能的fastjson进行数据序列化和反序列化。使得数据在stage之间的传递速度更快。</li>
+<li>除了分布式mq之外，还提供了本地动态线程池所需要的队列。避免了consumer由于长时间处理导致数据在队列中积压。</li>
+<li>stage利用quartz来提供定时功能，使得stage中的work可以选择定时/实时进行数据处理。从而迎合更多不同类型的需求。（比如定时报警，定时分析监控数据）</li>
+</ul>
+<h2 id="spring">spring</h2>
+<p>spring无需再赘述，使用其IOC、AOP等功能，并同时使用spring的其他组件比如spring-rabbit、spring-quartz等。保证spring各包兼容即可。<br><strong>在异步框架中的使用场景</strong>：整体系统框架搭建和整合。</p>
+<h2 id="quartz">quartz</h2>
+<p>quartz 的介绍文档网上很多，quartz作为一款优秀的定时器框架可以和spring无缝结合，同时还具有java自带的定时器timer所不具备的定时启动的 功能。其类crontab风格的定时任务声明也更符合我们企业级应用过程中的书写风格。之前文章中介绍过使用quartz过程中需要关注的几个点，复述如下：</p>
+<ul>
+<li>Job不能为内部类，否则无法初始化</li>
+<li>保证spring升级到新版本。如果使用老版本比如3.0.5，则会出现如下异常.该case在<a href="http://code.google.com/p/wisematches/issues/detail?id=156上有记录。" target="_blank" rel="external">http://code.google.com/p/wisematches/issues/detail?id=156上有记录。</a></li>
+</ul>
+<blockquote>
+<p>java.lang.IncompatibleClassChangeError: Found interface org.quartz.JobExecutionContext, but class was expected   </p>
+</blockquote>
+<ul>
+<li>引入spring-context-support包来使用quartz相关内容，并保证与其他包的兼容性。</li>
+<li>其定时语法和crontab有些许差别。</li>
+</ul>
+<p><strong>在异步框架中的使用场景</strong>：辅助实现定时功能，从而使得异步框架可以更加灵活的支持各种需求。</p>
+<h2 id="fastjson">fastjson</h2>
+<p>fastjson官网：<a href="http://code.alibabatech.com/wiki/display/FastJSON/Home-zh。如其描" target="_blank" rel="external">http://code.alibabatech.com/wiki/display/FastJSON/Home-zh。如其描</a> 述，<strong>“fastjson是最快的json库。特别在parser方面，fastjson的性能令人惊奇，甚至超越了二进制协议的protobuf”</strong>。虽然 只是fastjson一家之辞，但是从protobuf官网上对各种序列化/反序列化工具进行的性能测试中，也可以看出fastjson优异的性能已经将 传统的jackson工具抛在身后。</p>
+<p><img src="/img/seda6.jpg" alt=""><br><img src="/img/seda7.jpg" alt=""><br><img src="/img/seda8.jpg" alt=""></p>
+<p>除了速度这一最大优势之外，其还具有如下优势：      </p>
+<ul>
+<li>遵循<a href="http://json.org标准，为其官方网站收录的参考实现之一。" target="_blank" rel="external">http://json.org标准，为其官方网站收录的参考实现之一。</a></li>
+<li>功能强大，支持JDK的各种类型，包括基本的JavaBean、Collection、Map、Date、Enum、泛型。</li>
+<li>无依赖，不需要例外额外的jar，能够直接跑在JDK上。</li>
+<li>开源，使用Apache License 2.0协议开源      </li>
+</ul>
+<p><strong>在异步框架中的使用场景</strong>：辅助stage到stage之间的数据通信，负责数据在通信过程中的序列化和反序列化过程。</p>
+<h2 id="rabbitmq">rabbitmq</h2>
+<p>stage与stage之间需要依靠事件队列来进行通信，如果依赖于SEDA官网推荐的BlockingQueue，则无法满足未来的分布式部署。所以决定采用分布式mq来实现。以下比较几个主流的消息中间件：</p>
+<h3 id="activemq">activemq</h3>
+<p>被称为消息中间件中的瑞士军刀。支持JMS，性能不错。开源社区活跃。能与java很好结合。Spring有相应lib。其功能较为完备，可支持P2P和代理，但性能逊于rabbitmq。从性能角度出发来考虑，决定不使用activemq。</p>
+<p><img src="/img/seda9.jpg" alt=""></p>
+<h3 id="zeromq">zeromq</h3>
+<p>性能比其他中间件优异得多。但无法持久化，不能保证数据的可靠性。由于数据的可靠性不能被保证，所以暂时也不考虑。</p>
+<p><img src="/img/seda10.jpg" alt=""></p>
+<h3 id="redis">redis</h3>
+<p>可以当作轻量级的中间件。当传输数据大小少于10k时入队性能优异，数据较大时性能急剧下降。而其出队性能不论数据量大小都十分优秀。考虑到项目实现过程 中可能出现的大于10K的请求响应事件数据（比如推荐关键词、比如与后端服务交互返回的数据），所以不采用redis。</p>
+<p><img src="/img/seda11.jpg" alt=""></p>
+<h3 id="kafka">kafka</h3>
+<p>除此之外，kafka也是一款值得注目的，性能优异的分布式消息中间件，通过producer的push和consumer的poll来实现数据的交互。 kafka自带负载均衡、并有高可用、高吞吐等特性。但是考虑到实际项目的适用情况，暂时还不需要zookeeper集群，broker集群来进行如此大 规模的数据处理。加上其依赖于scala环境，所以要部署和运维显得不那么方便。所以暂时不考虑。</p>
+<p><img src="/img/seda12.jpg" alt=""></p>
+<h3 id="rabbitmq-1">rabbitmq</h3>
+<p>支持AMQP，性能优于activemq。能与java很好结合。Spring有相应lib。环境部署起来不如activemq便捷，需要erlang环境。</p>
+<p><img src="/img/seda13.jpg" alt=""></p>
+<p>在 <a href="http://www.aqee.net/message-queue-shootout/" target="_blank" rel="external">http://www.aqee.net/message-queue-shootout/</a> 一文中对activemq和rabbitmq进行的性能比较显示出rabbitmq更佳的性能。如下图所示：</p>
+<p><img src="/img/seda14.jpg" alt=""></p>
+<p>综上所述，考虑到该次项目所应用的场景和处理数据量的规模，且需要较为优秀的性能，较为便捷的部署方式，能保证消息可靠性以及可持久化，并且对java友好。最终权衡之下，选择了基于AMPQ的rabbitmq消息中间件。</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/分布式/">分布式</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/SEDA/">SEDA</a><a href="/tags/Spring/">Spring</a><a href="/tags/Quartz/">Quartz</a><a href="/tags/fastjson/">fastjson</a><a href="/tags/rabbitmq/">rabbitmq</a>
+  </div>
+
+</div>
+
+
+<div class="article-share" id="share">
+
+  <div data-url="https://github.com/surlymo/2014/09/23/基于SEDA的异步框架设计与实现-异步框架技术选型/" data-title="【基于SEDA的异步框架设计与实现】异步框架技术选型 | 飞小狐的博客" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2014/09/24/基于SEDA的异步框架设计与实现-异步框架总体设计与实现/" title="【基于SEDA的异步框架设计与实现】异步框架总体设计与实现">
+  <strong>上一篇：</strong><br/>
+  <span>
+  【基于SEDA的异步框架设计与实现】异步框架总体设计与实现</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2014/09/23/基于SEDA的异步框架设计与实现-为什么使用SEDA/"  title="【基于SEDA的异步框架设计与实现】为什么使用SEDA">
+ <strong>下一篇：</strong><br/> 
+ <span>【基于SEDA的异步框架设计与实现】为什么使用SEDA
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+<!-- 多说评论框 start -->
+<div id="cc" class="ds-thread"></div>
+<!-- 多说评论框 end -->
+<!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+<script type="text/javascript">
+var duoshuoQuery = {short_name:"surlymo"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0] 
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+		 
+		 // 对多说评论的样式进行修改
+		 document.getElementById('cc').style.width="90%";
+		 document.getElementById('cc').style.margin="0px auto";
+		 document.getElementById('cc').style.padding="20px 0px";
+	})();
+	 
+	
+	</script>
+<!-- 多说公共JS代码 end -->
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#spring"><span class="toc-number">1.</span> <span class="toc-text">spring</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#quartz"><span class="toc-number">2.</span> <span class="toc-text">quartz</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#fastjson"><span class="toc-number">3.</span> <span class="toc-text">fastjson</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#rabbitmq"><span class="toc-number">4.</span> <span class="toc-text">rabbitmq</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#activemq"><span class="toc-number">4.1.</span> <span class="toc-text">activemq</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#zeromq"><span class="toc-number">4.2.</span> <span class="toc-text">zeromq</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#redis"><span class="toc-number">4.3.</span> <span class="toc-text">redis</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#kafka"><span class="toc-number">4.4.</span> <span class="toc-text">kafka</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#rabbitmq-1"><span class="toc-number">4.5.</span> <span class="toc-text">rabbitmq</span></a></li></ol></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+			<li><a href="/categories/JDK使用/" title="JDK使用">JDK使用<sup>2</sup></a></li>
+		
+			<li><a href="/categories/Spring/" title="Spring">Spring<sup>2</sup></a></li>
+		
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>7</sup></a></li>
+		
+			<li><a href="/categories/备忘录/" title="备忘录">备忘录<sup>6</sup></a></li>
+		
+			<li><a href="/categories/敏捷之路/" title="敏捷之路">敏捷之路<sup>1</sup></a></li>
+		
+			<li><a href="/categories/网站架构/" title="网站架构">网站架构<sup>4</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/架构/" title="架构">架构<sup>4</sup></a></li>
+		
+			<li><a href="/tags/SEDA/" title="SEDA">SEDA<sup>4</sup></a></li>
+		
+			<li><a href="/tags/rabbitmq/" title="rabbitmq">rabbitmq<sup>3</sup></a></li>
+		
+			<li><a href="/tags/redis/" title="redis">redis<sup>3</sup></a></li>
+		
+			<li><a href="/tags/memcached/" title="memcached">memcached<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Quartz/" title="Quartz">Quartz<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Jetty/" title="Jetty">Jetty<sup>1</sup></a></li>
+		
+			<li><a href="/tags/zookeeper/" title="zookeeper">zookeeper<sup>1</sup></a></li>
+		
+			<li><a href="/tags/findbugs/" title="findbugs">findbugs<sup>1</sup></a></li>
+		
+			<li><a href="/tags/cobertura/" title="cobertura">cobertura<sup>1</sup></a></li>
+		
+			<li><a href="/tags/checkstyle/" title="checkstyle">checkstyle<sup>1</sup></a></li>
+		
+			<li><a href="/tags/Spring/" title="Spring">Spring<sup>1</sup></a></li>
+		
+			<li><a href="/tags/一致性哈希/" title="一致性哈希">一致性哈希<sup>1</sup></a></li>
+		
+			<li><a href="/tags/fastjson/" title="fastjson">fastjson<sup>1</sup></a></li>
+		
+			<li><a href="/tags/UT/" title="UT">UT<sup>1</sup></a></li>
+		
+			<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		
+			<li><a href="/tags/sun/" title="sun">sun<sup>1</sup></a></li>
+		
+			<li><a href="/tags/CyclicBarrier/" title="CyclicBarrier">CyclicBarrier<sup>1</sup></a></li>
+		
+			<li><a href="/tags/ThreadPoolExecutor/" title="ThreadPoolExecutor">ThreadPoolExecutor<sup>1</sup></a></li>
+		
+			<li><a href="/tags/JDK/" title="JDK">JDK<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+	  <li><a href="https://github.com/surlymo" target="_blank" title="Hexo">Surlymo Github</a></li>
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  <div class="weiboshow">
+  <p class="asidetitle">新浪微博</p>
+   <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=1&isFans=1&uid=1878748071&verifier=ae597523&dpc=1"></iframe>
+</div>
+
+
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font" class="clearfix">
+		
+		
+		
+		
+		
+		
+		
+		
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Pacman">Jacman</a> © 2015 
+		
+		<a href="https://github.com/surlymo/about" target="_blank" title="Surlymo">Surlymo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+
+
+<div id="totop">
+<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+</div>
+
+<script src="/js/totop.js"></script>
+
+
+
+
+  </body>
+</html>
+
+
+<a href="https://github.com/surlymo"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>

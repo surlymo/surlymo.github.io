@@ -1,0 +1,487 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>【大型网站技术架构笔记】伸缩性、可扩展性与安全 | 飞小狐的博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Surlymo">
+    
+    <meta name="description" content="网站架构的伸缩性设计
+一般手段有两种。一类是根据功能进行物理分离，一类是对单一功能进行集群化来实现。比如将缓存、静态文件、数据库服务从服务器中拆分进行单独部署，比如对业务逻辑进行横向纵向切分等，都属于通过物理分离来达成整个系统处理能力的伸缩。对服务进行集群化这个应用场景非常广泛。此处无需再多说。
+应">
+    
+    
+    
+    
+    <link rel="alternative" href="/atom.xml" title="飞小狐的博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="飞小狐的博客" title="飞小狐的博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="飞小狐的博客">飞小狐的博客</a></h1>
+				<h2 class="blog-motto">Action speak louder than words</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:github.com/surlymo">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2014/12/24/大型网站的伸缩性与可扩展性/" title="【大型网站技术架构笔记】伸缩性、可扩展性与安全" itemprop="url">【大型网站技术架构笔记】伸缩性、可扩展性与安全</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="https://github.com/surlymo/about" title="Surlymo" target="_blank" itemprop="author">Surlymo</a>
+		
+  <p class="article-time">
+    <time datetime="2014-12-24T13:01:48.000Z" itemprop="datePublished"> 发表于 12月 24 2014</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#网站架构的伸缩性设计"><span class="toc-number">1.</span> <span class="toc-text">网站架构的伸缩性设计</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#应用服务器进行伸缩的方法"><span class="toc-number">2.</span> <span class="toc-text">应用服务器进行伸缩的方法</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#HTTP重定向负载均衡"><span class="toc-number">2.1.</span> <span class="toc-text">HTTP重定向负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#DNS域名解析负载均衡"><span class="toc-number">2.2.</span> <span class="toc-text">DNS域名解析负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#反向代理负载均衡"><span class="toc-number">2.3.</span> <span class="toc-text">反向代理负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#IP负载均衡"><span class="toc-number">2.4.</span> <span class="toc-text">IP负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#数据链路层负载均衡"><span class="toc-number">2.5.</span> <span class="toc-text">数据链路层负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#负载均衡算法"><span class="toc-number">2.6.</span> <span class="toc-text">负载均衡算法</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#分布式缓存的伸缩性设计"><span class="toc-number">3.</span> <span class="toc-text">分布式缓存的伸缩性设计</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#数据存储的伸缩性设计"><span class="toc-number">4.</span> <span class="toc-text">数据存储的伸缩性设计</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#网站的可扩展设计"><span class="toc-number">5.</span> <span class="toc-text">网站的可扩展设计</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#网站的安全性考虑"><span class="toc-number">6.</span> <span class="toc-text">网站的安全性考虑</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#常见的攻击方式"><span class="toc-number">6.1.</span> <span class="toc-text">常见的攻击方式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#应对措施"><span class="toc-number">6.2.</span> <span class="toc-text">应对措施</span></a></li></ol></li></ol>
+		
+		</div>
+		
+		<h2 id="网站架构的伸缩性设计">网站架构的伸缩性设计</h2>
+<p>一般手段有两种。一类是根据功能进行物理分离，一类是对单一功能进行集群化来实现。比如将缓存、静态文件、数据库服务从服务器中拆分进行单独部署，比如对业务逻辑进行横向纵向切分等，都属于通过物理分离来达成整个系统处理能力的伸缩。对服务进行集群化这个应用场景非常广泛。此处无需再多说。</p>
+<h2 id="应用服务器进行伸缩的方法">应用服务器进行伸缩的方法</h2>
+<p>网站进行伸缩过程中，由于采用了集群技术，所以不可避免的要面对服务集群化后的负载均衡问题。以下有集中比较主要的服务器端负载均衡手段。</p>
+<h3 id="HTTP重定向负载均衡">HTTP重定向负载均衡</h3>
+<p>用户发请求给重定向服务器，通过负载均衡算法算出实际物理服务器地址，然后封装在响应头中返给客户端，同时将状态设置为302（redirect）。客户端收取请求后，再访问实际地址。该方法需要和客户端交互两次，且采用了302重定向状态码，有可能会被判断为SEO作弊。所以使用的案例并不多。</p>
+<h3 id="DNS域名解析负载均衡">DNS域名解析负载均衡</h3>
+<p>在DNS服务器中配置多个A记录即可。比如www.baidu.com A 111.18.82.21,www.baidu.com A 111.28.82.21,www.baidu.com A 111.38.82.21.当服务器收到客户端的域名请求时，会通过负载均衡算法（一般是rr）来找到对应的IP并返回给客户端，客户端根据IP地址进行请求。其优点在于将负载均衡交给了DNS，省去了网站自己维护的成本。同时DNS也区分了地域，如此可以较为便捷地就近实现负载均衡。但其缺点在于由于DNS是多级向上查询的机制，所以各级DNS服务器都需要缓存对应的信息。其可能造成短暂时间内的域名解析数据的不一致。比如ip更新、删除等。</p>
+<h3 id="反向代理负载均衡">反向代理负载均衡</h3>
+<p>其即为七层负载均衡。对请求进行转发。同时具备缓存功能。可以对静态资源进行缓存。同时可防止集群被攻击。比较主流的有nginx。</p>
+<h3 id="IP负载均衡">IP负载均衡</h3>
+<p>Load Balancer通过修改报头的源/目的ip地址和端口号，来达到“欺骗”真实服务器的目的。将源ip地址修改为当前BL（或者直接将BL设置为网关服务器），将目的ip地址修改为真实服务器(RS)。当RS处理后返回给LB时，LB再将ip修改还原后返回。由于IP负载均衡过程中往往需要修改端口号。端口属于传输层内容。所以虽然原书认为其属于网络层，但我认为更应该属于<strong>四层负载均衡</strong>，LVS的NAT模式即是如此。LVS还加入了IP隧道模式（TUN），其不再“欺骗”RS，而采取将原报文封装到新包中，通过IP隧道技术发给RS，其相对于DR模式的优势在于不要求网段相同，但缺点在于由于采用了隧道技术而使得运维变得比较麻烦。</p>
+<p>LVS的NAT（网络地址转换）模式：<br><img src="/img/nat.png" alt=""></p>
+<p>LVS的TUN（IP隧道）模式：<br><img src="/img/tun.png" alt=""></p>
+<h3 id="数据链路层负载均衡">数据链路层负载均衡</h3>
+<p>原理简单来说即：LB和RS具备相同虚拟IP地址。通过LB来修改客户端发来的请求的目的mac地址。从而不需修改任何端口和IP地址，即可将请求转发至RS服务器，RS计算后直接将响应返送回客户端。LVS的DR（直接路由）模式即是通过改手段实现的。</p>
+<p>LVS的DR（直接路由）模式：<br><img src="/img/dr.png" alt=""></p>
+<h3 id="负载均衡算法">负载均衡算法</h3>
+<p>一般有轮询（RR）、加权轮询（WRR）、随机、最少请求、源ip散列等手段。</p>
+<h2 id="分布式缓存的伸缩性设计">分布式缓存的伸缩性设计</h2>
+<p>一般考虑引入一致性哈希来进行负载均衡。同时能够达成水平扩展，所以一般采用虚拟化一致性哈希来达成这一目的。具体参考之前博客。按照经验，一台物理服务器一般虚拟出150个左右的虚拟节点较为合适，但也需要case by case。</p>
+<h2 id="数据存储的伸缩性设计">数据存储的伸缩性设计</h2>
+<p>分布式关系型数据库的伸缩一般采用的是分库分表，其就需要一个中间层来实现分库分表逻辑的透明化；尽量避免使用分布式事务，或者采用事务补偿机制。比如一个请求会对A数据库和B数据库进行跨库操作。那么当A执行成功后，执行B失败时，则将A也进行回滚。以此实现事务补偿。所谓的事务补偿即在事务链中，有一个正向操作必然也带有一个回滚的负向操作。除了关系型数据库外，NOSQL数据库非常适合进行系统的伸缩，比如hbase和mongo等。</p>
+<h2 id="网站的可扩展设计">网站的可扩展设计</h2>
+<p>从系统架构层面来说，一般采用的是分布式消息队列和分布式服务。来达成较大程度的解耦和微服务化。分布式服务化之后就需要考虑如何进行通讯，比如可以采用WebService、Thrift、Dubbo等技术。从代码层面上，则需要在进行设计的时候遵循开闭原则，单一职责原则等其他基础设计思想。</p>
+<h2 id="网站的安全性考虑">网站的安全性考虑</h2>
+<h3 id="常见的攻击方式">常见的攻击方式</h3>
+<p>这里主要有三种XSS、SQL注入以及CSRF。除此之外还有文件上传漏洞、路径遍历等方式。<br>XSS即跨站点攻击，通过嵌入代码来获取用户cookie，并以此进行恶意操作。CSRF即在用户已经登陆信任站点的前提下，用户又登陆了一个钓鱼网站，构造请求攻击受信任站点。此时cookie与session与真实访问一样无法识别出来。而SQL注入则是在请求参数中，注入SQL语句，从而来达到恶意攻击的目的。比如请求wwww.baidu.com?username=”surlymo;drop userinfo”。文件上传的话，则可能被上传恶意执行文件从而攻击服务器；路径遍历是攻击者通过url来尝试遍历站点的文件内容。</p>
+<h3 id="应对措施">应对措施</h3>
+<ol>
+<li>应对XSS攻击，对cookie采用http-only标识，声明其禁止被脚本访问。其直接解决了XSS的问题；其次，对用户输入的特殊字符进行消毒。比如识别用户输入的<img src="">时，就进行自动转义。</li>
+<li>应对CSRF共计，采用随机数token，验证码，以及验证HTTP请求头中的referer里的请求来源信息来进行检验。</li>
+<li>针对SQL注入，可以采用语义消毒，对drop等危险操作进行消毒；其次，进行参数绑定，强行指定输入参数只能作为参数，而无法作为SQL语义进行翻译。</li>
+<li>针对文件上传问题，设置文件类型白名单。</li>
+<li>针对路径遍历问题，进行资源的动静分离。url仅能访问静态资源。或者进行权限校验。</li>
+</ol>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/网站架构/">网站架构</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/架构/">架构</a>
+  </div>
+
+</div>
+
+
+<div class="article-share" id="share">
+
+  <div data-url="https://github.com/surlymo/2014/12/24/大型网站的伸缩性与可扩展性/" data-title="【大型网站技术架构笔记】伸缩性、可扩展性与安全 | 飞小狐的博客" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+
+<div class="next">
+<a href="/2014/12/23/大型网站的高性能架构/"  title="【大型网站技术架构笔记】高性能与高可用架构">
+ <strong>下一篇：</strong><br/> 
+ <span>【大型网站技术架构笔记】高性能与高可用架构
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+<!-- 多说评论框 start -->
+<div id="cc" class="ds-thread"></div>
+<!-- 多说评论框 end -->
+<!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+<script type="text/javascript">
+var duoshuoQuery = {short_name:"surlymo"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0] 
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+		 
+		 // 对多说评论的样式进行修改
+		 document.getElementById('cc').style.width="90%";
+		 document.getElementById('cc').style.margin="0px auto";
+		 document.getElementById('cc').style.padding="20px 0px";
+	})();
+	 
+	
+	</script>
+<!-- 多说公共JS代码 end -->
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#网站架构的伸缩性设计"><span class="toc-number">1.</span> <span class="toc-text">网站架构的伸缩性设计</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#应用服务器进行伸缩的方法"><span class="toc-number">2.</span> <span class="toc-text">应用服务器进行伸缩的方法</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#HTTP重定向负载均衡"><span class="toc-number">2.1.</span> <span class="toc-text">HTTP重定向负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#DNS域名解析负载均衡"><span class="toc-number">2.2.</span> <span class="toc-text">DNS域名解析负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#反向代理负载均衡"><span class="toc-number">2.3.</span> <span class="toc-text">反向代理负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#IP负载均衡"><span class="toc-number">2.4.</span> <span class="toc-text">IP负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#数据链路层负载均衡"><span class="toc-number">2.5.</span> <span class="toc-text">数据链路层负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#负载均衡算法"><span class="toc-number">2.6.</span> <span class="toc-text">负载均衡算法</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#分布式缓存的伸缩性设计"><span class="toc-number">3.</span> <span class="toc-text">分布式缓存的伸缩性设计</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#数据存储的伸缩性设计"><span class="toc-number">4.</span> <span class="toc-text">数据存储的伸缩性设计</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#网站的可扩展设计"><span class="toc-number">5.</span> <span class="toc-text">网站的可扩展设计</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#网站的安全性考虑"><span class="toc-number">6.</span> <span class="toc-text">网站的安全性考虑</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#常见的攻击方式"><span class="toc-number">6.1.</span> <span class="toc-text">常见的攻击方式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#应对措施"><span class="toc-number">6.2.</span> <span class="toc-text">应对措施</span></a></li></ol></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+			<li><a href="/categories/JDK使用/" title="JDK使用">JDK使用<sup>2</sup></a></li>
+		
+			<li><a href="/categories/Spring/" title="Spring">Spring<sup>2</sup></a></li>
+		
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>7</sup></a></li>
+		
+			<li><a href="/categories/备忘录/" title="备忘录">备忘录<sup>6</sup></a></li>
+		
+			<li><a href="/categories/敏捷之路/" title="敏捷之路">敏捷之路<sup>1</sup></a></li>
+		
+			<li><a href="/categories/网站架构/" title="网站架构">网站架构<sup>4</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/架构/" title="架构">架构<sup>4</sup></a></li>
+		
+			<li><a href="/tags/SEDA/" title="SEDA">SEDA<sup>4</sup></a></li>
+		
+			<li><a href="/tags/rabbitmq/" title="rabbitmq">rabbitmq<sup>3</sup></a></li>
+		
+			<li><a href="/tags/redis/" title="redis">redis<sup>3</sup></a></li>
+		
+			<li><a href="/tags/memcached/" title="memcached">memcached<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Quartz/" title="Quartz">Quartz<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Jetty/" title="Jetty">Jetty<sup>1</sup></a></li>
+		
+			<li><a href="/tags/zookeeper/" title="zookeeper">zookeeper<sup>1</sup></a></li>
+		
+			<li><a href="/tags/findbugs/" title="findbugs">findbugs<sup>1</sup></a></li>
+		
+			<li><a href="/tags/cobertura/" title="cobertura">cobertura<sup>1</sup></a></li>
+		
+			<li><a href="/tags/checkstyle/" title="checkstyle">checkstyle<sup>1</sup></a></li>
+		
+			<li><a href="/tags/Spring/" title="Spring">Spring<sup>1</sup></a></li>
+		
+			<li><a href="/tags/一致性哈希/" title="一致性哈希">一致性哈希<sup>1</sup></a></li>
+		
+			<li><a href="/tags/fastjson/" title="fastjson">fastjson<sup>1</sup></a></li>
+		
+			<li><a href="/tags/UT/" title="UT">UT<sup>1</sup></a></li>
+		
+			<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		
+			<li><a href="/tags/sun/" title="sun">sun<sup>1</sup></a></li>
+		
+			<li><a href="/tags/CyclicBarrier/" title="CyclicBarrier">CyclicBarrier<sup>1</sup></a></li>
+		
+			<li><a href="/tags/ThreadPoolExecutor/" title="ThreadPoolExecutor">ThreadPoolExecutor<sup>1</sup></a></li>
+		
+			<li><a href="/tags/JDK/" title="JDK">JDK<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+	  <li><a href="https://github.com/surlymo" target="_blank" title="Hexo">Surlymo Github</a></li>
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  <div class="weiboshow">
+  <p class="asidetitle">新浪微博</p>
+   <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=1&isFans=1&uid=1878748071&verifier=ae597523&dpc=1"></iframe>
+</div>
+
+
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font" class="clearfix">
+		
+		
+		
+		
+		
+		
+		
+		
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Pacman">Jacman</a> © 2015 
+		
+		<a href="https://github.com/surlymo/about" target="_blank" title="Surlymo">Surlymo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+
+
+<div id="totop">
+<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+</div>
+
+<script src="/js/totop.js"></script>
+
+
+
+
+  </body>
+</html>
+
+
+<a href="https://github.com/surlymo"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>

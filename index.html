@@ -1,0 +1,437 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>飞小狐的博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Surlymo">
+    
+    
+    
+    
+    <link rel="alternative" href="/atom.xml" title="飞小狐的博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="飞小狐的博客" title="飞小狐的博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="飞小狐的博客">飞小狐的博客</a></h1>
+				<h2 class="blog-motto">Action speak louder than words</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:github.com/surlymo">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main">
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/12/24/大型网站的伸缩性与可扩展性/" title="【大型网站技术架构笔记】伸缩性、可扩展性与安全" itemprop="url">
+  
+    <h1 itemprop="name">【大型网站技术架构笔记】伸缩性、可扩展性与安全</h1>
+    
+     
+           <p itemprop="description" >网站架构的伸缩性设计
+一般手段有两种。一类是根据功能进行物理分离，一类是对单一功能进行集群化来实现。比如将缓存、静态文件、数据库服务从服务器中拆分进行单独部署，比如对业务逻辑进行横向纵向切分等，都属于通过物理分离来达成整个系统处理能力的伸缩。对服务进行集群化这个应用场景非常广泛。</p>
+        
+    
+    <time datetime="2014-12-24T13:01:48.000Z" itemprop="datePublished">12月 24 2014</time>
+  </a>
+</section>
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/12/23/大型网站的高性能架构/" title="【大型网站技术架构笔记】高性能与高可用架构" itemprop="url">
+  
+    <h1 itemprop="name">【大型网站技术架构笔记】高性能与高可用架构</h1>
+    
+     
+           <p itemprop="description" >性能测试指标
+1.响应时间。2.并发数。如果暂时没有对应的准确监控，针对不同业务模型，可以有不一样的并发数的预估。我们的系统进行峰值并发数预估的话，有一种比较粗略的计算方式，即全天请求平均每秒并发数 * 3。但也需要case by case。3.吞吐量。比较常见的有QPS（每秒查</p>
+        
+    
+    <time datetime="2014-12-23T14:10:59.000Z" itemprop="datePublished">12月 23 2014</time>
+  </a>
+</section>
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/12/09/大型网站架构模式与核心要素/" title="【大型网站技术架构笔记】架构模式与核心要素" itemprop="url">
+  
+    <h1 itemprop="name">【大型网站技术架构笔记】架构模式与核心要素</h1>
+    
+     
+           <p itemprop="description" >架构模式
+系统朝大型系统衍变的过程中，如下几个架构模式是我们应该考虑也终将经历的。
+分层
+即对系统进行横向划分。比如进行MVC分层，又可分为接入层、业务层、核心数据层。应当禁止跨层调用以及逆向调用。
+分割
+即对系统进行纵向划分。比如在业务层上拆解业务，核心数据层上划分不同类型的数</p>
+        
+    
+    <time datetime="2014-12-09T13:30:00.000Z" itemprop="datePublished">12月 9 2014</time>
+  </a>
+</section>
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/09/24/大型网站技术架构笔记-演化过程/" title="【大型网站技术架构笔记】演化过程" itemprop="url">
+  
+    <h1 itemprop="name">【大型网站技术架构笔记】演化过程</h1>
+    
+     
+           <p itemprop="description" >开篇明义：
+【大型网站技术架构笔记】系列是阅读《大型网站技术架构核心原理与实践》一书的一些笔记，记录了原书的一些重要内容以及我的个人理解。其中很多内容网上都能找得到。其实整本书，我最赞同的是作者阐述的网站架构的价值观——“业务成就技术，而不是相反”。在没有业务场景的时候就一味追逐</p>
+        
+    
+    <time datetime="2014-09-24T03:31:34.000Z" itemprop="datePublished">9月 24 2014</time>
+  </a>
+</section>
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/09/24/基于SEDA的异步框架设计与实现-异步框架总体设计与实现/" title="【基于SEDA的异步框架设计与实现】异步框架总体设计与实现" itemprop="url">
+  
+    <h1 itemprop="name">【基于SEDA的异步框架设计与实现】异步框架总体设计与实现</h1>
+    
+     
+           <p itemprop="description" >框架中stage的理想结构
+前文提到，基于SEDA的异步框架，一个stage的理想结构描述如下：
+
+在这个框架的设想中，一个stage一般需要有如下几个组件：
+
+D-MQ：分布式消息中间件。用做事件队列，以进行消息的传递。
+Local-Queue：本地队列。一般是blocking</p>
+        
+    
+    <time datetime="2014-09-24T02:46:51.000Z" itemprop="datePublished">9月 24 2014</time>
+  </a>
+</section>
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/09/23/基于SEDA的异步框架设计与实现-异步框架技术选型/" title="【基于SEDA的异步框架设计与实现】异步框架技术选型" itemprop="url">
+  
+    <h1 itemprop="name">【基于SEDA的异步框架设计与实现】异步框架技术选型</h1>
+    
+     
+           <p itemprop="description" >在这次实现的SEDA异步框架中，采用的基础架构原型如下：
+
+采用了spring+quartz+fastjson+rabbitmq来实现。和传统SEDA架构区别比较大的地方在于：
+
+采用分布式mq（使用了rabbitmq）而不是blockingqueue。如此既可以支持以后可能进行</p>
+        
+    
+    <time datetime="2014-09-23T12:57:32.000Z" itemprop="datePublished">9月 23 2014</time>
+  </a>
+</section>
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/09/23/基于SEDA的异步框架设计与实现-为什么使用SEDA/" title="【基于SEDA的异步框架设计与实现】为什么使用SEDA" itemprop="url">
+  
+    <h1 itemprop="name">【基于SEDA的异步框架设计与实现】为什么使用SEDA</h1>
+    
+     
+           <p itemprop="description" >目前，面对并发环境，主流互联网服务器编程模型有两种：多线程模型以及事件驱动模型。但是这两个模型都不足以解决这个问题。我们来首先看一下这两种编程模型。
+多线程并发模型
+多线程并发模型是目前最普遍的服务器编程模型，该模型的架构如下图所示：
+
+该模型针对每一个请求，会为其创建并分配一个</p>
+        
+    
+    <time datetime="2014-09-23T12:49:35.000Z" itemprop="datePublished">9月 23 2014</time>
+  </a>
+</section>
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/09/23/基于SEDA的异步框架设计与实现-SEDA国内外研究现状/" title="【基于SEDA的异步框架设计与实现】SEDA国内外研究现状" itemprop="url">
+  
+    <h1 itemprop="name">【基于SEDA的异步框架设计与实现】SEDA国内外研究现状</h1>
+    
+     
+           <p itemprop="description" >SEDA架构的起源和特点
+当前最流行的互联网服务器模型基本都是基于多线程／进程并发服务模型。然而当线程数目增加到一定值后，系统性能会下降，这就限制了系统支持高并发请求的能力。这种缺陷是多线程／进程本身的架构造成的。加州大学伯克利分校的Matt Welsh提出了一种新的服务器软件架</p>
+        
+    
+    <time datetime="2014-09-23T12:45:33.000Z" itemprop="datePublished">9月 23 2014</time>
+  </a>
+</section>
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/09/23/JVM学习笔记一/" title="JVM学习笔记一" itemprop="url">
+  
+    <h1 itemprop="name">JVM学习笔记一</h1>
+    
+     
+           <p itemprop="description" >JDK和JRE的区别
+JDK是开发库，而JRE只是运行环境。JRE没有编译器，也没有JAVA API里面非JAVASE API的部分等。eclipse之所以用jre也能运行，是因为IDE内部集成了编译器。
+运行时数据区域
+程序计数器（program counter registe</p>
+        
+    
+    <time datetime="2014-09-23T12:26:44.000Z" itemprop="datePublished">9月 23 2014</time>
+  </a>
+</section>
+
+  <section class="post" itemscope itemprop="blogPost">
+  
+    <a href="/2014/09/23/分布式锁的三种实现方式/" title="分布式锁的三种实现方式" itemprop="url">
+  
+    <h1 itemprop="name">分布式锁的三种实现方式</h1>
+    
+     
+           <p itemprop="description" >写在前面
+在进行大型网站技术架构设计以及业务实现的过程中，多少都会遇到需要使用分布式锁的情况。那么问题也就接踵而至。分布式锁zk和memcached以及redis三者都能实现，同样是分布式锁，三者的区别何在？各自适用什么场景？
+Zookeeper
+1、实现原理：
+
+基于zooke</p>
+        
+    
+    <time datetime="2014-09-23T11:49:55.000Z" itemprop="datePublished">9月 23 2014</time>
+  </a>
+</section>
+
+
+  <nav id="page-nav" class="clearfix">
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><a class="extend next" rel="next" href="/page/2/">Next<span></span></a>
+  </nav>
+
+</div>
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+			<li><a href="/categories/JDK使用/" title="JDK使用">JDK使用<sup>2</sup></a></li>
+		
+			<li><a href="/categories/Spring/" title="Spring">Spring<sup>2</sup></a></li>
+		
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>7</sup></a></li>
+		
+			<li><a href="/categories/备忘录/" title="备忘录">备忘录<sup>6</sup></a></li>
+		
+			<li><a href="/categories/敏捷之路/" title="敏捷之路">敏捷之路<sup>1</sup></a></li>
+		
+			<li><a href="/categories/网站架构/" title="网站架构">网站架构<sup>4</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/架构/" title="架构">架构<sup>4</sup></a></li>
+		
+			<li><a href="/tags/SEDA/" title="SEDA">SEDA<sup>4</sup></a></li>
+		
+			<li><a href="/tags/rabbitmq/" title="rabbitmq">rabbitmq<sup>3</sup></a></li>
+		
+			<li><a href="/tags/redis/" title="redis">redis<sup>3</sup></a></li>
+		
+			<li><a href="/tags/memcached/" title="memcached">memcached<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Quartz/" title="Quartz">Quartz<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Jetty/" title="Jetty">Jetty<sup>1</sup></a></li>
+		
+			<li><a href="/tags/zookeeper/" title="zookeeper">zookeeper<sup>1</sup></a></li>
+		
+			<li><a href="/tags/findbugs/" title="findbugs">findbugs<sup>1</sup></a></li>
+		
+			<li><a href="/tags/cobertura/" title="cobertura">cobertura<sup>1</sup></a></li>
+		
+			<li><a href="/tags/checkstyle/" title="checkstyle">checkstyle<sup>1</sup></a></li>
+		
+			<li><a href="/tags/Spring/" title="Spring">Spring<sup>1</sup></a></li>
+		
+			<li><a href="/tags/一致性哈希/" title="一致性哈希">一致性哈希<sup>1</sup></a></li>
+		
+			<li><a href="/tags/fastjson/" title="fastjson">fastjson<sup>1</sup></a></li>
+		
+			<li><a href="/tags/UT/" title="UT">UT<sup>1</sup></a></li>
+		
+			<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		
+			<li><a href="/tags/sun/" title="sun">sun<sup>1</sup></a></li>
+		
+			<li><a href="/tags/CyclicBarrier/" title="CyclicBarrier">CyclicBarrier<sup>1</sup></a></li>
+		
+			<li><a href="/tags/ThreadPoolExecutor/" title="ThreadPoolExecutor">ThreadPoolExecutor<sup>1</sup></a></li>
+		
+			<li><a href="/tags/JDK/" title="JDK">JDK<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+	  <li><a href="https://github.com/surlymo" target="_blank" title="Hexo">Surlymo Github</a></li>
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  <div class="weiboshow">
+  <p class="asidetitle">新浪微博</p>
+   <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=1&isFans=1&uid=1878748071&verifier=ae597523&dpc=1"></iframe>
+</div>
+
+
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font" class="clearfix">
+		
+		
+		
+		
+		
+		
+		
+		
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Pacman">Jacman</a> © 2015 
+		
+		<a href="https://github.com/surlymo/about" target="_blank" title="Surlymo">Surlymo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<div id="totop">
+<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+</div>
+
+<script src="/js/totop.js"></script>
+
+
+
+
+  </body>
+ </html>
+
+
+<a href="https://github.com/surlymo"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>

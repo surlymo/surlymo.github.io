@@ -1,0 +1,491 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>【备忘】代码格式化与静态检查 | 飞小狐的博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Surlymo">
+    
+    <meta name="description" content="写在前面
+在敏捷开发中，随着文档地位不断被削弱，此时代码的可读性和质量往往成为直接决定项目是否健壮可维护的关键。这就要求我们的代码具有良好的风格（包括注释、命名等）、代码格式标准、程序没有非法调用和低级bug，以及用以对功能进行解释的单元测试能够尽可能多地覆盖核心功能。如果每次我们都手动去依次检查这">
+    
+    
+    
+    
+    <link rel="alternative" href="/atom.xml" title="飞小狐的博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="飞小狐的博客" title="飞小狐的博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="飞小狐的博客">飞小狐的博客</a></h1>
+				<h2 class="blog-motto">Action speak louder than words</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:github.com/surlymo">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2014/09/23/代码格式化与静态检查/" title="【备忘】代码格式化与静态检查" itemprop="url">【备忘】代码格式化与静态检查</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="https://github.com/surlymo/about" title="Surlymo" target="_blank" itemprop="author">Surlymo</a>
+		
+  <p class="article-time">
+    <time datetime="2014-09-23T09:11:58.000Z" itemprop="datePublished"> 发表于 9月 23 2014</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#写在前面"><span class="toc-number">1.</span> <span class="toc-text">写在前面</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#代码格式化"><span class="toc-number">2.</span> <span class="toc-text">代码格式化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#代码风格检查"><span class="toc-number">3.</span> <span class="toc-text">代码风格检查</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#代码漏洞检查"><span class="toc-number">4.</span> <span class="toc-text">代码漏洞检查</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#单测覆盖率检查"><span class="toc-number">5.</span> <span class="toc-text">单测覆盖率检查</span></a></li></ol>
+		
+		</div>
+		
+		<h2 id="写在前面">写在前面</h2>
+<p>在敏捷开发中，随着文档地位不断被削弱，此时代码的可读性和质量往往成为直接决定项目是否健壮可维护的关键。这就要求我们的代码具有良好的风格（包括注释、命名等）、代码格式标准、程序没有非法调用和低级bug，以及用以对功能进行解释的单元测试能够尽可能多地覆盖核心功能。如果每次我们都手动去依次检查这些点是否达标，那持续集成将变得无比缓慢。更遑论持续交付了。</p>
+<p>所以在持续集成（CI）的过程中，每次local build的时候，我们可以利用一些maven插件对代码进行以上需求的自动化校准或校验。宥于时间，所以此处不能对每个插件的使用进行详细说明。以后有时间会进行详细整理。以下我们依次进行简单介绍。</p>
+<h2 id="代码格式化">代码格式化</h2>
+<p><strong>eclipse插件</strong><br>打开eclipse，window —&gt; Preferences —&gt; Java —&gt; Code Style —&gt; Formatter</p>
+<p><img src="/img/formatter.jpg" alt=""></p>
+<p><strong>maven插件</strong><br>同时，在maven中导入插件可以保证在每次mvn install的时候都默认进行代码的自动格式化。其中，如果不需要特定的配置文件指定，则无需引入<configuration>标签。</configuration></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">plugin</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>com.googlecode.maven-java-formatter-plugin<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>maven-java-formatter-plugin<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">version</span>&gt;</span>0.4<span class="tag">&lt;/<span class="title">version</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">configuration</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">configFile</span>&gt;</span>formatter-profile.xml<span class="tag">&lt;/<span class="title">configFile</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">encoding</span>&gt;</span>gbk<span class="tag">&lt;/<span class="title">encoding</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">configuration</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">executions</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">execution</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">goals</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">goal</span>&gt;</span>format<span class="tag">&lt;/<span class="title">goal</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;/<span class="title">goals</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">execution</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">executions</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">plugin</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<h2 id="代码风格检查">代码风格检查</h2>
+<p><strong>eclipse插件</strong><br>checkstyle插件的安装在网上随处可见。见此处建议采用手动安装，自动安装的地址在我使用过程中无法连接。此处摘取部分内容说明如下：<br>1）下载地址：<a href="http://sourceforge.net/projects/eclipse-cs/files/OldFiles/" target="_blank" rel="external">http://sourceforge.net/projects/eclipse-cs/files/OldFiles/</a><br>2）将下载包解压后的features和plugins目录中的文件复制到%ECLIPSE_HOME%下的对应目录中<br>3）重启eclipse<br>默认将采用sun的风格标准进行代码风格检查，如果不采用默认的checkstyle配置，要导入配置文件只需：preferences—&gt; checkstyle —&gt; New —&gt; External Configuration File. 并导入对应xml配置即可。</p>
+<p><a href="http://orange5458.iteye.com/blog/1547851" target="_blank" rel="external">checkstyle插件安装详细请点击</a><br><a href="http://blog.csdn.net/kaiqi239/article/details/5734785" target="_blank" rel="external">checkstyle配置文件说明请点击</a></p>
+<p><img src="/img/checkstyle.jpg" alt=""></p>
+<p>常用方法：<br>1）手动检查：<br>待检查目标点击右键 —&gt; checkstyle —&gt; check code with checkstyle<br>2）清除检查结果：<br>待检查目标点击右键 —&gt; checkstyle —&gt; clear checkstyle voilations<br>3）查看风格报警信息：<br>window —&gt; show view —&gt; checkstyle violations</p>
+<p><strong>maven插件</strong><br>除此之外，我们可以采用checkstyle的maven插件来实现与持续集成的绑定，<a href="http://blog.csdn.net/kongxx/article/details/7750015" target="_blank" rel="external">详情请点击</a></p>
+<h2 id="代码漏洞检查">代码漏洞检查</h2>
+<p><strong>eclipse插件</strong><br>采用findbugs来进行代码检查。网上很多人都对eclipse中如何安装和使用findbugs进行了较为详细的说明。此处不再赘述。<br><a href="http://tidus2005.iteye.com/blog/462212" target="_blank" rel="external">详情请点击</a></p>
+<p><strong>maven插件</strong><br>如果要引入其maven插件，仅需在maven的配置文件中加入如下代码：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">plugin</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>org.codehaus.mojo<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>findbugs-maven-plugin<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">version</span>&gt;</span>2.3.1<span class="tag">&lt;/<span class="title">version</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">configuration</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">threshold</span>&gt;</span>High<span class="tag">&lt;/<span class="title">threshold</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">findbugsXmlOutput</span>&gt;</span>true<span class="tag">&lt;/<span class="title">findbugsXmlOutput</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">findbugsXmlOutputDirectory</span>&gt;</span>.<span class="tag">&lt;/<span class="title">findbugsXmlOutputDirectory</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">findbugsHtmlOutput</span>&gt;</span>true<span class="tag">&lt;/<span class="title">findbugsHtmlOutput</span>&gt;</span>   <span class="tag">&lt;<span class="title">findbugsHtmlOutputDirectory</span>&gt;</span>target/site<span class="tag">&lt;/<span class="title">findbugsHtmlOutputDirectory</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">configuration</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">executions</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">execution</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">id</span>&gt;</span>findbugs<span class="tag">&lt;/<span class="title">id</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">phase</span>&gt;</span>verify<span class="tag">&lt;/<span class="title">phase</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">goals</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">goal</span>&gt;</span>findbugs<span class="tag">&lt;/<span class="title">goal</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;/<span class="title">goals</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">execution</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">executions</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">plugin</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>然后执行</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">mvn org.codehaus.mojo:findbugs-maven-plugin:<span class="number">2.0</span>.<span class="number">1</span>:findbugs</div></pre></td></tr></table></figure>
+
+<p>即可获得对应的报告数据。这样hudson或者jenkins的CI平台，就可以依据报告进行代码漏洞的分析。</p>
+<h2 id="单测覆盖率检查">单测覆盖率检查</h2>
+<p><strong>eclipse插件</strong><br>采用cobertura进行UT覆盖率检查。eclipse的cobertura插件名为ecobertura。<br><a href="http://ecobertura.johoop.de/" target="_blank" rel="external">详细请点击</a></p>
+<p><strong>maven插件</strong><br>在maven的配置文件中加入如下代码：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="title">plugin</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>org.codehaus.mojo<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>cobertura-maven-plugin<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">version</span>&gt;</span>2.5.1<span class="tag">&lt;/<span class="title">version</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">configuration</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">formats</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">format</span>&gt;</span>xml<span class="tag">&lt;/<span class="title">format</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">formats</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">aggregate</span>&gt;</span>true<span class="tag">&lt;/<span class="title">aggregate</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">instrumentation</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">includes</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">include</span>&gt;</span>${cobertura.include}<span class="tag">&lt;/<span class="title">include</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;/<span class="title">includes</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">instrumentation</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">configuration</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">executions</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">execution</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">goals</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">goal</span>&gt;</span>clean<span class="tag">&lt;/<span class="title">goal</span>&gt;</span>  </div><div class="line">                <span class="tag">&lt;<span class="title">goal</span>&gt;</span>cobertura<span class="tag">&lt;/<span class="title">goal</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;/<span class="title">goals</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">execution</span>&gt;</span>  </div><div class="line">     <span class="tag">&lt;/<span class="title">executions</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">plugin</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>然后执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">mvn clean cobertua:cobertura</div></pre></td></tr></table></figure>
+
+<p>即可生成报告。依此结合hudson/jenkins平台进行相应的持续集成的数据分析的质量管控。</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/备忘录/">备忘录</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/formatter/">formatter</a><a href="/tags/checkstyle/">checkstyle</a><a href="/tags/cobertura/">cobertura</a><a href="/tags/findbugs/">findbugs</a>
+  </div>
+
+</div>
+
+
+<div class="article-share" id="share">
+
+  <div data-url="https://github.com/surlymo/2014/09/23/代码格式化与静态检查/" data-title="【备忘】代码格式化与静态检查 | 飞小狐的博客" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2014/09/23/rabbitmq学习笔记/" title="【备忘】rabbitmq学习笔记">
+  <strong>上一篇：</strong><br/>
+  <span>
+  【备忘】rabbitmq学习笔记</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2014/09/23/linux中安装rabbitmq出现的错误记录/"  title="【备忘】linux中安装rabbitmq出现的错误记录">
+ <strong>下一篇：</strong><br/> 
+ <span>【备忘】linux中安装rabbitmq出现的错误记录
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+<!-- 多说评论框 start -->
+<div id="cc" class="ds-thread"></div>
+<!-- 多说评论框 end -->
+<!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+<script type="text/javascript">
+var duoshuoQuery = {short_name:"surlymo"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0] 
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+		 
+		 // 对多说评论的样式进行修改
+		 document.getElementById('cc').style.width="90%";
+		 document.getElementById('cc').style.margin="0px auto";
+		 document.getElementById('cc').style.padding="20px 0px";
+	})();
+	 
+	
+	</script>
+<!-- 多说公共JS代码 end -->
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#写在前面"><span class="toc-number">1.</span> <span class="toc-text">写在前面</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#代码格式化"><span class="toc-number">2.</span> <span class="toc-text">代码格式化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#代码风格检查"><span class="toc-number">3.</span> <span class="toc-text">代码风格检查</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#代码漏洞检查"><span class="toc-number">4.</span> <span class="toc-text">代码漏洞检查</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#单测覆盖率检查"><span class="toc-number">5.</span> <span class="toc-text">单测覆盖率检查</span></a></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+			<li><a href="/categories/JDK使用/" title="JDK使用">JDK使用<sup>2</sup></a></li>
+		
+			<li><a href="/categories/Spring/" title="Spring">Spring<sup>2</sup></a></li>
+		
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>7</sup></a></li>
+		
+			<li><a href="/categories/备忘录/" title="备忘录">备忘录<sup>6</sup></a></li>
+		
+			<li><a href="/categories/敏捷之路/" title="敏捷之路">敏捷之路<sup>1</sup></a></li>
+		
+			<li><a href="/categories/网站架构/" title="网站架构">网站架构<sup>4</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/架构/" title="架构">架构<sup>4</sup></a></li>
+		
+			<li><a href="/tags/SEDA/" title="SEDA">SEDA<sup>4</sup></a></li>
+		
+			<li><a href="/tags/rabbitmq/" title="rabbitmq">rabbitmq<sup>3</sup></a></li>
+		
+			<li><a href="/tags/redis/" title="redis">redis<sup>3</sup></a></li>
+		
+			<li><a href="/tags/memcached/" title="memcached">memcached<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Quartz/" title="Quartz">Quartz<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Jetty/" title="Jetty">Jetty<sup>1</sup></a></li>
+		
+			<li><a href="/tags/zookeeper/" title="zookeeper">zookeeper<sup>1</sup></a></li>
+		
+			<li><a href="/tags/findbugs/" title="findbugs">findbugs<sup>1</sup></a></li>
+		
+			<li><a href="/tags/cobertura/" title="cobertura">cobertura<sup>1</sup></a></li>
+		
+			<li><a href="/tags/checkstyle/" title="checkstyle">checkstyle<sup>1</sup></a></li>
+		
+			<li><a href="/tags/Spring/" title="Spring">Spring<sup>1</sup></a></li>
+		
+			<li><a href="/tags/一致性哈希/" title="一致性哈希">一致性哈希<sup>1</sup></a></li>
+		
+			<li><a href="/tags/fastjson/" title="fastjson">fastjson<sup>1</sup></a></li>
+		
+			<li><a href="/tags/UT/" title="UT">UT<sup>1</sup></a></li>
+		
+			<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		
+			<li><a href="/tags/sun/" title="sun">sun<sup>1</sup></a></li>
+		
+			<li><a href="/tags/CyclicBarrier/" title="CyclicBarrier">CyclicBarrier<sup>1</sup></a></li>
+		
+			<li><a href="/tags/ThreadPoolExecutor/" title="ThreadPoolExecutor">ThreadPoolExecutor<sup>1</sup></a></li>
+		
+			<li><a href="/tags/JDK/" title="JDK">JDK<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+	  <li><a href="https://github.com/surlymo" target="_blank" title="Hexo">Surlymo Github</a></li>
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  <div class="weiboshow">
+  <p class="asidetitle">新浪微博</p>
+   <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=1&isFans=1&uid=1878748071&verifier=ae597523&dpc=1"></iframe>
+</div>
+
+
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font" class="clearfix">
+		
+		
+		
+		
+		
+		
+		
+		
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Pacman">Jacman</a> © 2015 
+		
+		<a href="https://github.com/surlymo/about" target="_blank" title="Surlymo">Surlymo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+
+
+<div id="totop">
+<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+</div>
+
+<script src="/js/totop.js"></script>
+
+
+
+
+  </body>
+</html>
+
+
+<a href="https://github.com/surlymo"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>

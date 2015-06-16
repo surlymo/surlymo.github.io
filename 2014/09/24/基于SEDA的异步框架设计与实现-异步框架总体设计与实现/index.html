@@ -1,0 +1,581 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>【基于SEDA的异步框架设计与实现】异步框架总体设计与实现 | 飞小狐的博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Surlymo">
+    
+    <meta name="description" content="框架中stage的理想结构
+前文提到，基于SEDA的异步框架，一个stage的理想结构描述如下：
+
+在这个框架的设想中，一个stage一般需要有如下几个组件：
+
+D-MQ：分布式消息中间件。用做事件队列，以进行消息的传递。
+Local-Queue：本地队列。一般是blockingQueue，用以辅助">
+    
+    
+    
+    
+    <link rel="alternative" href="/atom.xml" title="飞小狐的博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="飞小狐的博客" title="飞小狐的博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="飞小狐的博客">飞小狐的博客</a></h1>
+				<h2 class="blog-motto">Action speak louder than words</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:github.com/surlymo">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2014/09/24/基于SEDA的异步框架设计与实现-异步框架总体设计与实现/" title="【基于SEDA的异步框架设计与实现】异步框架总体设计与实现" itemprop="url">【基于SEDA的异步框架设计与实现】异步框架总体设计与实现</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="https://github.com/surlymo/about" title="Surlymo" target="_blank" itemprop="author">Surlymo</a>
+		
+  <p class="article-time">
+    <time datetime="2014-09-24T02:46:51.000Z" itemprop="datePublished"> 发表于 9月 24 2014</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#框架中stage的理想结构"><span class="toc-number">1.</span> <span class="toc-text">框架中stage的理想结构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SEDA异步框架的使用场景"><span class="toc-number">2.</span> <span class="toc-text">SEDA异步框架的使用场景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SEDA异步框架系统总体架构"><span class="toc-number">3.</span> <span class="toc-text">SEDA异步框架系统总体架构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#异步框架原生态架构（Virtual_Bundle）"><span class="toc-number">4.</span> <span class="toc-text">异步框架原生态架构（Virtual Bundle）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#异步框架的AMQP实现（AMQP_Bundle）"><span class="toc-number">5.</span> <span class="toc-text">异步框架的AMQP实现（AMQP Bundle）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#amqp_bundle"><span class="toc-number">5.1.</span> <span class="toc-text">amqp bundle</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#bundle_decider"><span class="toc-number">5.2.</span> <span class="toc-text">bundle decider</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#work_carrier"><span class="toc-number">5.3.</span> <span class="toc-text">work carrier</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#exchange"><span class="toc-number">5.4.</span> <span class="toc-text">exchange</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#amq"><span class="toc-number">5.5.</span> <span class="toc-text">amq</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#work_carrier-1"><span class="toc-number">5.6.</span> <span class="toc-text">work carrier</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#work_carrier-1"><span class="toc-number">5.7.</span> <span class="toc-text">work carrier</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#bundle启动过程"><span class="toc-number">6.</span> <span class="toc-text">bundle启动过程</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#总的来说"><span class="toc-number">6.1.</span> <span class="toc-text">总的来说</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#一个简单的bundle安装示例"><span class="toc-number">7.</span> <span class="toc-text">一个简单的bundle安装示例</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#框架改进空间"><span class="toc-number">8.</span> <span class="toc-text">框架改进空间</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#附录"><span class="toc-number">9.</span> <span class="toc-text">附录</span></a></li></ol>
+		
+		</div>
+		
+		<h2 id="框架中stage的理想结构">框架中stage的理想结构</h2>
+<p>前文提到，基于SEDA的异步框架，一个stage的理想结构描述如下：</p>
+<p><img src="/img/seda21.jpg" alt=""></p>
+<p>在这个框架的设想中，一个stage一般需要有如下几个组件：</p>
+<ul>
+<li><strong>D-MQ</strong>：分布式消息中间件。用做事件队列，以进行消息的传递。</li>
+<li><strong>Local-Queue</strong>：本地队列。一般是blockingQueue，用以辅助实现stage内的动态线程池。采用Local-Queue的目的在于避免数据在mq中的堆积导致mq性能下降。</li>
+<li><strong>Thread Pool</strong>：动态线程池。进行事件的并发处理。</li>
+<li><strong>Worker</strong>：事件的具体处理器</li>
+<li><strong>Stage Controller</strong>：stage的性能控制器。用以对stage的队列、资源、调度策略进行控制。</li>
+</ul>
+<p>引此为框架的设计理念，于是有了如下基于SEDA的异步框架的架构设计。</p>
+<h2 id="SEDA异步框架的使用场景">SEDA异步框架的使用场景</h2>
+<p>该异步框架可以用来处理如下几个场景的问题：</p>
+<ul>
+<li><strong>系统资源监控（CPU、内存、线程池、队列）</strong></li>
+<li><strong>外围服务交互情况（API被调用、上游服务交互、请求方等）监控</strong></li>
+<li><strong>系统报警（服务异常、接口压力过大等）</strong></li>
+<li><strong>基于日志和事件的数据挖掘（规则挖掘等）</strong></li>
+<li><strong>重要业务数据切片转储（里程碑消息、核心服务交互数据等）</strong></li>
+<li><strong>异步触发的操作（表A写完后异步写表B等）</strong></li>
+</ul>
+<p>其使用场景大致可如下图所示：</p>
+<p><img src="/img/seda15.jpg" alt=""></p>
+<h2 id="SEDA异步框架系统总体架构">SEDA异步框架系统总体架构</h2>
+<p>因而，基于以上所述适用范围的框架实现之后的系统架构，一般可如下所示：</p>
+<p><img src="/img/seda16.jpg" alt=""></p>
+<p><strong>当然，以上结构并非绝对的，如有需要，你完全可以通过自己定制bundle和bundle之间的拓扑关系，来实现各种复杂的事件处理过程。</strong>你只需要简单通 过声明bundle相关配置，即可实现任何按照你所希望的有向图去关联的bundle。框架提供给了你一个经过轻量级封装后的平台，后面的业务逻辑，就靠 开发者自己了。</p>
+<h2 id="异步框架原生态架构（Virtual_Bundle）">异步框架原生态架构（Virtual Bundle）</h2>
+<p>基于上述的设计理念，最终实现的异步框架的原生态架构如下所示：</p>
+<p><img src="/img/seda17.jpg" alt=""></p>
+<p>异步框架在无任何扩展的时候，其主要组件如下：</p>
+<ul>
+<li><p><strong>bundle</strong>：消息中心的核心组件。由读、处理、写三部分功能组成。同时整合开关、定时器、动态线程池等元素来支持多样化的输入和需求。bundle可以从多种数据源获取数据，并进行数据的处理。<br>1）<em>开关</em>：用以决定该bundle是否被激活。如未被激活，则该bundle将停止读取数据，同时不会在其他服务上产生该bundle对应的数据（比如在mq上生成该bundle的队列、连接、交换机等。）<br>2）<em>定时器</em>：用以指定该bundle是否定时运行。如未指定，则实时运行。<br>3）<em>动态线程池</em>：用以支持bundle以同步/异步方式调用。如未指定，则同步运行。</p>
+</li>
+<li><p><strong>bundle decider</strong>：用以对bundle的关键指标进行决策（是否激活、时效性、同步类型等）。并同时提供健康检查。</p>
+</li>
+<li><strong>Work carrier</strong>：处理数据的最小单元。</li>
+</ul>
+<h2 id="异步框架的AMQP实现（AMQP_Bundle）">异步框架的AMQP实现（AMQP Bundle）</h2>
+<p> 异步框架扩展的AMQP实现，其架构图如下所示：</p>
+<p><img src="/img/seda18.jpg" alt=""></p>
+<p>其主要组件说明如下：</p>
+<h3 id="amqp_bundle">amqp bundle</h3>
+<p>amqp bundle是消息中心的核心组件。由读、处理、写三部分功能组成。在整合开关、定时器、动态线程池之余，提供了配置化的订阅订阅管理以及关键行为的声明。要声明一个bundle仅需声明对应的bean，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>1）<strong>开关</strong>：用以决定该bundle是否被激活。如未被激活，则该bundle将停止读取数据，同时不会在其他服务上产生该bundle对应的数据（比如在 mq上生成该bundle的队列、连接、交换机等）。加上开关之后，最大的优势在于其可以更方便的支持分布式部署。对不同的部署实例设置不一样的 active设置可以完成不同stage在不同机器的启停。默认激活。我们为bundle加上开关，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"active"</span> <span class="attribute">value</span>=<span class="value">"true"</span> /&gt;</span>   </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>2）<strong>定时器</strong>：用以指定该bundle是否定时运行。默认实时运行。我们为bundle加上定时器，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"timer"</span> <span class="attribute">value</span>=<span class="value">"0/30 * * * * ?"</span>/&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>3）<strong>动态线程池</strong>：用以支持bundle内部的实际数据流处理过程以同步/异步方式调用。默认同步运行。我们为bundle加上动态线程池，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"taskExecutor"</span> <span class="attribute">ref</span>=<span class="value">"alarmCollectBundleExecutor"</span>/&gt;</span>         </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span>  </div><div class="line">  </div><div class="line"><span class="comment">&lt;!-- 报警信息收集器对应的动态线程池 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollectBundleExecutor"</span> <span class="attribute">class</span>=<span class="value">"org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor"</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"corePoolSize"</span> <span class="attribute">value</span>=<span class="value">"2"</span> /&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"maxPoolSize"</span> <span class="attribute">value</span>=<span class="value">"30"</span> /&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"queueCapacity"</span> <span class="attribute">value</span>=<span class="value">"200"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>4）<strong>订阅发布</strong>：用以声明收集和推送信息时所需的交换机和密钥。通过支持逗号分隔的多key组合来支持多对多的上下游bundle关系。每个key的配置语 法符合rabbitmq中topic类型的exchange使用规范即可。默认采用“deimos-common”交换机。以下给出几种声明的配置：</p>
+<p>其一：最简易配置。配置要订阅和发布的消息key即可。交换机采用默认配置。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>其二：声明特殊的来源和目的地的交换机：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubDest"</span> <span class="attribute">value</span>=<span class="value">"spec1"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subDest"</span> <span class="attribute">value</span>=<span class="value">"spec2"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>5）<strong>事件队列</strong>：每个bundle默认实现一个固定格式的独立队列。可通过配置另外指定。可支持bundle监听多队列的需求。如需要特别指定一个或多个事件队列，则示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subQueues"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">list</span>&gt;</span>  </div><div class="line">            <span class="tag">&lt;<span class="title">ref</span> <span class="attribute">bean</span>=<span class="value">"queueForLogError"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;/<span class="title">list</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;/<span class="title">property</span>&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span>  </div><div class="line">  </div><div class="line"><span class="comment">&lt;!-- error日志消息的订阅 --&gt;</span>  </div><div class="line"><span class="comment">&lt;!--  </span></div><div class="line">        如队列的声明不采用默认配置，完整声明如下：  </div><div class="line">       &lt;property name="exchangeName" value="deimos-common" /&gt;  </div><div class="line">       &lt;property name="queue" value="logQueue" /&gt;  </div><div class="line">       &lt;property name="bindingKey" value="collect.log.*" /&gt;  </div><div class="line">--&gt;  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"queueForLogError"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.bo.AmqpQueueConfig"</span>&gt;</span>  </div><div class="line">    <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"bindingKey"</span> <span class="attribute">value</span>=<span class="value">"collect.log.error"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>6）<strong>监听容器</strong>：按照默认配置实现，并发数可通过配置指定。bundle如需额外设定channel数量，则示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"concurrency"</span> <span class="attribute">value</span>=<span class="value">"20"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<p>7）<strong>关键行为</strong>：用以给发布的消息打上bundle的标签。以辅助其他bundle进行数据筛选和处理。默认以发布的key为关键行为。如需额外声明，则示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"keyAction"</span> <span class="attribute">value</span>=<span class="value">"ALARM_KEY_INFO"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<h3 id="bundle_decider">bundle decider</h3>
+<p>bundle decider用以对bundle的关键指标进行决策（是否激活、时效性、同步类型等）。并同时提供健康检查。默认采用fix strategy decider（定参策略决策器）。可进行配置来指定所需决策器类型，示例如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"strategyDecider"</span> <span class="attribute">value</span>=<span class="value">"FIXED_STRATEGY"</span>/&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<h3 id="work_carrier">work carrier</h3>
+<p>work carrier是处理数据的最小单元。Bundle依据决策器指示的状态同步/异步、实时/定时调用work carrier进行处理。完全对开发者透明。用户者无需关心该组件。bundle将结合decider进行调度。同时work carrier处理后的数据推送过程也对开发者透明。开发者所需要做的就是实现bundle的doWork方法，并将处理之后的数据直接return即 可。doWork方法如下所示：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="annotation">@Override</span>  </div><div class="line"><span class="keyword">public</span> Object <span class="title">doWork</span>(List&lt;DeimosSatelliteRequest&gt; message) <span class="keyword">throws</span> Exception{  </div><div class="line">    <span class="comment">// do somethoing with message then retrun the result;  </span></div><div class="line">}</div></pre></td></tr></table></figure>
+
+<h3 id="exchange">exchange</h3>
+<p>exchange是rabbitmq交换机。默认所有bundle都请求“deimos-common”。可集群化。配置见上。</p>
+<h3 id="amq">amq</h3>
+<p>采用支持amqp协议的rabbitmq。默认单机内存节点。可采用镜像队列或其他方案来进行broker、queue的集群化。</p>
+<h3 id="work_carrier-1">work carrier</h3>
+<p>amq信道。可启动多信道并发监听amq队列消息。支持配置化设定。配置见上。</p>
+<h3 id="work_carrier-1">work carrier</h3>
+<h2 id="bundle启动过程">bundle启动过程</h2>
+<p>在web/servlet容器启动之后，框架中的各个组件将被依次加载，以下给出了bundle的大致启动流程，也正是因为这个启动流程，将上述的各个组件进行串联，并开始执行各自负责的工作：</p>
+<p><img src="/img/seda19.jpg" alt=""></p>
+<h3 id="总的来说">总的来说</h3>
+<p>以上详细介绍了SEDA框架的AMQP实现中主要组件的作用、声明方式以及实现原理。总结一下，异步框架的AMQP实现中，bundle与bundle之间通过分布式 队列rabbitmq进行数据传递，bundle内部提供包含阻塞队列的动态线程池taskExecutor来进行数据处理，同时提供了定时器timer 来控制bundle的定时/实时调用。workcarrier作为消息处理的最小单元，其调用机制完全对用户透明。消息在bundle中的接收、处理和推送由bundle decider组件进行管理。用户只需要简单实现doWork方法和声明bundle配置即可实现消息的处理和传递。</p>
+<h2 id="一个简单的bundle安装示例">一个简单的bundle安装示例</h2>
+<p>你完全可以只按照如下几步，就可以轻松实现你每个stage：</p>
+<ul>
+<li>继承AmqpBundle类，实现doWork方法，完成你的业务逻辑。示例如下（通用收集器demo）：</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">CommonAmqpCollectBundle</span> <span class="keyword">extends</span> <span class="title">SatAmqpBundle</span> </span>{  </div><div class="line">    <span class="javadoc">/** </span></div><div class="line">     * 采用并发队列。性能比阻塞队列高 </div><div class="line">     */  </div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> ConcurrentLinkedQueue&lt;DeimosSatelliteRequest&gt; cacheQueue = <span class="keyword">new</span> ConcurrentLinkedQueue&lt;DeimosSatelliteRequest&gt;();  </div><div class="line">  </div><div class="line">    <span class="annotation">@Override</span>  </div><div class="line">    <span class="keyword">public</span> Object <span class="title">doWork</span>(List&lt;DeimosSatelliteRequest&gt; message) <span class="keyword">throws</span> Exception {  </div><div class="line">        logger.info(<span class="string">"i am now in LogWorker:"</span> + Thread.currentThread().getName() + <span class="string">"message is : "</span> + message  </div><div class="line">                + <span class="string">". now begin to collect!"</span>);  </div><div class="line">          </div><div class="line">        <span class="comment">// 此处不采用锁，因为其带来的影响很有限  </span></div><div class="line">        cacheQueue.addAll(message);  </div><div class="line">        <span class="keyword">if</span> (cacheQueue.size() &lt; SatConstant.LOG_BATCH_SIZE) {  </div><div class="line">            <span class="keyword">return</span> <span class="keyword">null</span>;  </div><div class="line">        }  </div><div class="line">  </div><div class="line">        <span class="comment">// 进行遍历导数据  </span></div><div class="line">        List&lt;DeimosSatelliteRequest&gt; list = <span class="keyword">new</span> ArrayList&lt;DeimosSatelliteRequest&gt;();  </div><div class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; SatConstant.LOG_BATCH_SIZE && !cacheQueue.isEmpty(); i++) {  </div><div class="line">            DeimosSatelliteRequest meta = cacheQueue.poll();  </div><div class="line">              </div><div class="line">            <span class="comment">// 此时队列也已经为空了  </span></div><div class="line">            <span class="keyword">if</span>(meta == <span class="keyword">null</span>){  </div><div class="line">                <span class="keyword">break</span>;  </div><div class="line">            }  </div><div class="line">              </div><div class="line">            <span class="comment">// 校验  </span></div><div class="line">            <span class="keyword">if</span>(meta.getTimestamp() == <span class="keyword">null</span> || meta.getRealData() == <span class="keyword">null</span> || meta.getData() == <span class="keyword">null</span>){  </div><div class="line">                logger.error(<span class="string">"[deimos-satellite]meta param is error! meta request: "</span> + meta);  </div><div class="line">                <span class="keyword">continue</span>;  </div><div class="line">            }  </div><div class="line">              </div><div class="line">            <span class="comment">// 记录关键行为  </span></div><div class="line">            <span class="keyword">if</span>(meta.getData().get(SatApiConstant.KEY_ACTION) == <span class="keyword">null</span>){  </div><div class="line">                meta.getData().put(SatApiConstant.KEY_ACTION, keyAction);  </div><div class="line">            }  </div><div class="line">            list.add(meta);  </div><div class="line">        }  </div><div class="line">          </div><div class="line">        <span class="comment">// 排序 ，以时间戳为key。考虑到可能出现时间戳一致的情况，所以不能用map。考虑到如果log要push到其他平台或者服务上，  </span></div><div class="line">        <span class="comment">// 该切片应该先保证自身有序而不能完全依赖于下一个bundle来处理  </span></div><div class="line">        Collections.sort(list, <span class="keyword">new</span> Comparator&lt;DeimosSatelliteRequest&gt;() {  </div><div class="line">            <span class="annotation">@Override</span>  </div><div class="line">            <span class="keyword">public</span> <span class="keyword">int</span> <span class="title">compare</span>(DeimosSatelliteRequest o1, DeimosSatelliteRequest o2) {  </div><div class="line">                <span class="keyword">if</span> (o1.getTimestamp().longValue() &gt;= o2.getTimestamp()) {  </div><div class="line">                    <span class="keyword">return</span> -<span class="number">1</span>;  </div><div class="line">                } <span class="keyword">else</span> {  </div><div class="line">                    <span class="keyword">return</span> <span class="number">1</span>;  </div><div class="line">                }  </div><div class="line">            }  </div><div class="line">        });   </div><div class="line">        logger.info(<span class="string">"[deimos-satellite]common amqp collctor prepare to push to next bundle............ key action: "</span> + keyAction);        </div><div class="line">        <span class="keyword">return</span> list;  </div><div class="line">    }     </div><div class="line">}</div></pre></td></tr></table></figure>
+
+<ul>
+<li>对新写的bundle类加上配置声明。以下为最轻便的写法。如果需要额外定制其他bundle参数，参照上面的相关说明，进行定制即可。</li>
+</ul>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- 报警消息收集器，最简易参数声明。在切分成不同stage之后没有什么需要特别关注的潜在性能瓶颈时使用 --&gt;</span>  </div><div class="line"><span class="tag">&lt;<span class="title">bean</span> <span class="attribute">id</span>=<span class="value">"alarmCollector"</span> <span class="attribute">class</span>=<span class="value">"com.cc.deimos.satellite.core.collector.CommonAmqpCollectBundle"</span>&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"pubKeys"</span> <span class="attribute">value</span>=<span class="value">"process.alarm.*"</span> /&gt;</span>  </div><div class="line">        <span class="tag">&lt;<span class="title">property</span> <span class="attribute">name</span>=<span class="value">"subKeys"</span> <span class="attribute">value</span>=<span class="value">"collect.alarm.*, collect.log.error"</span> /&gt;</span>  </div><div class="line"><span class="tag">&lt;/<span class="title">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+
+<ul>
+<li>启动服务。至此，你的bundle也就随着服务的启动就自动启动并开始工作了。</li>
+</ul>
+<p>以上描述的一个bundle启动的过程，当所需要处理的业务被合理拆解成数个bundle（也就是所谓的stage）之后，就可以形成一个完整的基于工作流的系统实现。以下为基于对来源A进行事件收集的简易报警系统，在被拆解为三个bundle之后的数据流：</p>
+<p><img src="/img/seda20.jpg" alt=""></p>
+<h2 id="框架改进空间">框架改进空间</h2>
+<p>目前框架仅仅提供了一个非常轻量的解决方案，并仅对AMQP进行了实现。后续可有如下几个改进升级的空间：</p>
+<ol>
+<li>构成bundle strategy center。各个bundle的decider（决策器）在决策过程中，可以依赖strategy center进行bundle的相关决策。</li>
+<li>支持bundle集群化、broker集群化，并引入相关策略（比如一致性哈希）来保证基于该框架的系统的高可用。可纳入bundle strategy center。</li>
+<li>框架进一步基于IOC思想，进行面向接口编程的改造和升级。</li>
+</ol>
+<h2 id="附录">附录</h2>
+<p>github代码地址：<a href="https://github.com/surlymo/SedaFramework" target="_blank" rel="external">https://github.com/surlymo/SedaFramework</a></p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/分布式/">分布式</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/SEDA/">SEDA</a>
+  </div>
+
+</div>
+
+
+<div class="article-share" id="share">
+
+  <div data-url="https://github.com/surlymo/2014/09/24/基于SEDA的异步框架设计与实现-异步框架总体设计与实现/" data-title="【基于SEDA的异步框架设计与实现】异步框架总体设计与实现 | 飞小狐的博客" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2014/09/24/大型网站技术架构笔记-演化过程/" title="【大型网站技术架构笔记】演化过程">
+  <strong>上一篇：</strong><br/>
+  <span>
+  【大型网站技术架构笔记】演化过程</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2014/09/23/基于SEDA的异步框架设计与实现-异步框架技术选型/"  title="【基于SEDA的异步框架设计与实现】异步框架技术选型">
+ <strong>下一篇：</strong><br/> 
+ <span>【基于SEDA的异步框架设计与实现】异步框架技术选型
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+<!-- 多说评论框 start -->
+<div id="cc" class="ds-thread"></div>
+<!-- 多说评论框 end -->
+<!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+<script type="text/javascript">
+var duoshuoQuery = {short_name:"surlymo"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0] 
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+		 
+		 // 对多说评论的样式进行修改
+		 document.getElementById('cc').style.width="90%";
+		 document.getElementById('cc').style.margin="0px auto";
+		 document.getElementById('cc').style.padding="20px 0px";
+	})();
+	 
+	
+	</script>
+<!-- 多说公共JS代码 end -->
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#框架中stage的理想结构"><span class="toc-number">1.</span> <span class="toc-text">框架中stage的理想结构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SEDA异步框架的使用场景"><span class="toc-number">2.</span> <span class="toc-text">SEDA异步框架的使用场景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SEDA异步框架系统总体架构"><span class="toc-number">3.</span> <span class="toc-text">SEDA异步框架系统总体架构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#异步框架原生态架构（Virtual_Bundle）"><span class="toc-number">4.</span> <span class="toc-text">异步框架原生态架构（Virtual Bundle）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#异步框架的AMQP实现（AMQP_Bundle）"><span class="toc-number">5.</span> <span class="toc-text">异步框架的AMQP实现（AMQP Bundle）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#amqp_bundle"><span class="toc-number">5.1.</span> <span class="toc-text">amqp bundle</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#bundle_decider"><span class="toc-number">5.2.</span> <span class="toc-text">bundle decider</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#work_carrier"><span class="toc-number">5.3.</span> <span class="toc-text">work carrier</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#exchange"><span class="toc-number">5.4.</span> <span class="toc-text">exchange</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#amq"><span class="toc-number">5.5.</span> <span class="toc-text">amq</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#work_carrier-1"><span class="toc-number">5.6.</span> <span class="toc-text">work carrier</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#work_carrier-1"><span class="toc-number">5.7.</span> <span class="toc-text">work carrier</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#bundle启动过程"><span class="toc-number">6.</span> <span class="toc-text">bundle启动过程</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#总的来说"><span class="toc-number">6.1.</span> <span class="toc-text">总的来说</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#一个简单的bundle安装示例"><span class="toc-number">7.</span> <span class="toc-text">一个简单的bundle安装示例</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#框架改进空间"><span class="toc-number">8.</span> <span class="toc-text">框架改进空间</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#附录"><span class="toc-number">9.</span> <span class="toc-text">附录</span></a></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+			<li><a href="/categories/JDK使用/" title="JDK使用">JDK使用<sup>2</sup></a></li>
+		
+			<li><a href="/categories/Spring/" title="Spring">Spring<sup>2</sup></a></li>
+		
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>7</sup></a></li>
+		
+			<li><a href="/categories/备忘录/" title="备忘录">备忘录<sup>6</sup></a></li>
+		
+			<li><a href="/categories/敏捷之路/" title="敏捷之路">敏捷之路<sup>1</sup></a></li>
+		
+			<li><a href="/categories/网站架构/" title="网站架构">网站架构<sup>4</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/架构/" title="架构">架构<sup>4</sup></a></li>
+		
+			<li><a href="/tags/SEDA/" title="SEDA">SEDA<sup>4</sup></a></li>
+		
+			<li><a href="/tags/rabbitmq/" title="rabbitmq">rabbitmq<sup>3</sup></a></li>
+		
+			<li><a href="/tags/redis/" title="redis">redis<sup>3</sup></a></li>
+		
+			<li><a href="/tags/memcached/" title="memcached">memcached<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Quartz/" title="Quartz">Quartz<sup>2</sup></a></li>
+		
+			<li><a href="/tags/Jetty/" title="Jetty">Jetty<sup>1</sup></a></li>
+		
+			<li><a href="/tags/zookeeper/" title="zookeeper">zookeeper<sup>1</sup></a></li>
+		
+			<li><a href="/tags/findbugs/" title="findbugs">findbugs<sup>1</sup></a></li>
+		
+			<li><a href="/tags/cobertura/" title="cobertura">cobertura<sup>1</sup></a></li>
+		
+			<li><a href="/tags/checkstyle/" title="checkstyle">checkstyle<sup>1</sup></a></li>
+		
+			<li><a href="/tags/Spring/" title="Spring">Spring<sup>1</sup></a></li>
+		
+			<li><a href="/tags/一致性哈希/" title="一致性哈希">一致性哈希<sup>1</sup></a></li>
+		
+			<li><a href="/tags/fastjson/" title="fastjson">fastjson<sup>1</sup></a></li>
+		
+			<li><a href="/tags/UT/" title="UT">UT<sup>1</sup></a></li>
+		
+			<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		
+			<li><a href="/tags/sun/" title="sun">sun<sup>1</sup></a></li>
+		
+			<li><a href="/tags/CyclicBarrier/" title="CyclicBarrier">CyclicBarrier<sup>1</sup></a></li>
+		
+			<li><a href="/tags/ThreadPoolExecutor/" title="ThreadPoolExecutor">ThreadPoolExecutor<sup>1</sup></a></li>
+		
+			<li><a href="/tags/JDK/" title="JDK">JDK<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+	  <li><a href="https://github.com/surlymo" target="_blank" title="Hexo">Surlymo Github</a></li>
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  <div class="weiboshow">
+  <p class="asidetitle">新浪微博</p>
+   <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=1&isFans=1&uid=1878748071&verifier=ae597523&dpc=1"></iframe>
+</div>
+
+
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font" class="clearfix">
+		
+		
+		
+		
+		
+		
+		
+		
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Pacman">Jacman</a> © 2015 
+		
+		<a href="https://github.com/surlymo/about" target="_blank" title="Surlymo">Surlymo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+
+
+<div id="totop">
+<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+</div>
+
+<script src="/js/totop.js"></script>
+
+
+
+
+  </body>
+</html>
+
+
+<a href="https://github.com/surlymo"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>
